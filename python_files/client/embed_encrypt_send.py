@@ -14,6 +14,7 @@ seal pk datatype
     pk: public key 
 
 """
+import streamlit as st
 
 class client_side_processing(object):
     """
@@ -24,8 +25,8 @@ class client_side_processing(object):
                 path_to_model
                 ):
         self.data = data
-        self.model = 
+        self.model = path_to_model
 
-    def 
     
-
+    
+st.write("hello")
