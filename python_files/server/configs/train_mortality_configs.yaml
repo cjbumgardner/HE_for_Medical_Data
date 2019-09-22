@@ -1,0 +1,8 @@
+#Configuration file for logistic regression training.
+
+learning_rate : 0.001
+batch_size: 30
+#just the name of file to be saved in local dir
+save_model_file: "logreg_model_params"
+num_epochs: 1000
+

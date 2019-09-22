@@ -1,0 +1,84 @@
+"""
+Tensor ops
+"""
+#%%
+import streamlit as st
+import numpy as np
+import seal 
+from seal import ChooserEvaluator, \
+    Ciphertext, \
+    Decryptor, \
+    Encryptor, \
+    EncryptionParameters, \
+    Evaluator, \
+    IntegerEncoder, \
+    FractionalEncoder, \
+    KeyGenerator, \
+    MemoryPoolHandle, \
+    Plaintext, \
+    SEALContext, \
+    EvaluationKeys, \
+    GaloisKeys, \
+    PolyCRTBuilder, \
+    ChooserEncoder, \
+    ChooserEvaluator, \
+    ChooserPoly
+#%%
+"""
+parms = EncryptionParameters()
+parms.set_poly_modulus("1x^2048 + 1")
+parms.set_coeff_modulus(seal.coeff_modulus_128(2048))
+parms.set_plain_modulus(1 << 8)
+context = SEALContext(parms)
+"""
+
+class dot_prod_seal(object):
+    """Dot product for at least on encrypted input and up to one encoded input."""
+    def __init__(self, context, noise_alarm = None):
+
+
+
+#%%
+parms = EncryptionParameters()
+parms.set_poly_modulus("1x^2048 + 1")
+parms.set_coeff_modulus(seal.coeff_modulus_128(2048))
+parms.set_plain_modulus(1 << 8)
+context = SEALContext(parms)
+keygen = KeyGenerator(context)
+public_key = keygen.public_key()
+secret_key = keygen.secret_key()
+encryptor = Encryptor(context, public_key)
+evaluator = Evaluator(context)
+decryptor = Decryptor(context, secret_key)
+
+rational_numbers = [3.1, 4.159, 2.65, 3.5897, 9.3, 2.3, 8.46, 2.64, 3.383, 2.7]
+coefficients = [0.1, 0.05, 0.05, 0.2, 0.05, 0.3, 0.1, 0.025, 0.075, 0.05]
+encoder = FractionalEncoder(context.plain_modulus(), context.poly_modulus(), 64, 32, 3)
+encrypted_rationals = []
+rational_numbers_string = "Encoding and encrypting: "
+for i in range(10):
+    encrypted_rationals.append(Ciphertext(parms))
+    encryptor.encrypt(encoder.encode(rational_numbers[i]), encrypted_rationals[i])
+    rational_numbers_string += (str)(rational_numbers[i])[:6]
+    if i < 9: rational_numbers_string += ", "
+print(rational_numbers_string)
+encoded_coefficients = []
+encoded_coefficients_string = "Encoding plaintext coefficients: "
+for i in range(10):
+    encoded_coefficients.append(encoder.encode(coefficients[i]))
+    encoded_coefficients_string += (str)(coefficients[i])[:6]
+    if i < 9: encoded_coefficients_string += ", "
+print(encoded_coefficients_string)
+
+div_by_ten = encoder.encode(0.1)
+print("Computing products: ")
+for i in range(10):
+    evaluator.multiply_plain(encrypted_rationals[i], encoded_coefficients[i])
+print("Done")
+encrypted_result = Ciphertext()
+print("Adding up all 10 ciphertexts: ")
+evaluator.add_many(encrypted_rationals, encrypted_result)
+print("Done")
+print("Noise budget in result: " + (str)(decryptor.invariant_noise_budget(encrypted_result)) + " bits")
+
+#%%
