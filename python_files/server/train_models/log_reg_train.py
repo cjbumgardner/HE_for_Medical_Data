@@ -25,9 +25,9 @@ def generate_random_data(num_data_samp, data_dim):
     y = np.rint(y_float)
     return {"x": x, "y": y}
 
-class LogisticRegression(nn.Module):
+class model(nn.Module):
     def __init__(self, input_size, num_classes):
-        super(LogisticRegression, self).__init__()
+        super(model, self).__init__()
         self.linear = nn.Linear(input_size, num_classes)
     
     def forward(self, x):
@@ -55,7 +55,7 @@ def train(config, train_dict):
     
     test_loader = torch.utils.data.DataLoader(test_tensors)
 
-    model = LogisticRegression(num_features,1)
+    model = model(num_features,1)
     optimizer = torch.optim.Adam(model.parameters(),lr = lr)
 
     for epoch in range(num_epochs):
@@ -75,9 +75,10 @@ def train(config, train_dict):
     
     return model
 
+#TODO data load
+#TODO add flags for training vs serving
 
-
-if  __name__ == "__main__": #TODO data load
+if  __name__ == "__main__": 
 #learning rate schecule?
     #for experimenting to make sure everything works
     data = generate_random_data(5000,10)
