@@ -40,22 +40,19 @@ def print_parameters(context):
     print("| plain_modulus: " + (str)(context.plain_modulus().value()))
     print("| noise_standard_deviation: " + (str)(context.noise_standard_deviation()))
 #%%
-class dot_prod_seal(object):
-    """Dot product for at least one encrypted input and up to one encoded input.
-    This is set up specifically for using floating point numbers """
-    def __init__(self, context, 
-                       int_prec, 
-                       frac_prec,
-                       plaintext_base,
-                       noise_alarm = None):
-        """Input: context: SEAL context object with poly, coeff, and plain modulus set.
-                  int_prec: """
-        self.encoder = FractionalEncoder(context.plain_modulus(), 
-                                         context.poly_modulus(), 
-                                         int_prec,
-                                         frac_prec, 
-                                         plaintext_base)
+class cypher_dot_plain(object):
+    """
+    Dot product of a cypher and plain text. This multiplication won't affect noise
+    budget. 
+    """
+    def __init__(self, context):
+        """
+        Input: context: SEAL context object with poly, coeff, and plain modulus set.
+        """
 
+        self.context = context
+
+    
 
 
 #%%
@@ -65,6 +62,22 @@ parms.set_coeff_modulus(seal.coeff_modulus_128(2048))
 parms.set_plain_modulus(1 << 8)
 context = SEALContext(parms)
 print_parameters(context)
+#%%
+parms.set_poly_modulus("1x^4096 + 1")
+parms.set_coeff_modulus(seal.coeff_modulus_128(4096))
+
+	# Note that 40961 is a prime number and 2*4096 divides 40960.
+parms.set_plain_modulus(40961)
+
+context = SEALContext(parms)
+print_parameters(context)
+
+	# We can see that batching is indeed enabled by looking at the encryption
+	# parameter qualifiers created by SEALContext.
+qualifiers = context.qualifiers()
+
+print(f"Batching: {dir(context.parms())}")
+
 #%%
 
 keygen = KeyGenerator(context)

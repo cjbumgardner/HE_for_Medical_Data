@@ -76,7 +76,7 @@ def train(config, train_dict):
     return model
 
 #TODO data load
-#TODO add flags for training vs serving
+#TODO normalization and parameter precision cutoff for seal_models
 
 if  __name__ == "__main__": 
 #learning rate schecule?
