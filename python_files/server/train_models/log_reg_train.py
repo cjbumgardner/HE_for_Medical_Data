@@ -5,7 +5,7 @@ Train a logistic regression model.
     Output: 
         params: parameters of logistic regression model
 """
-
+#%%
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -34,14 +34,21 @@ class model(nn.Module):
         return torch.sigmoid(self.linear(x))
 
     def predict(self,x):
-        return torch.round(forward(x))
+        return torch.round(self.forward(x))
 
 
 def train(config, train_dict):
+    """
+    Training for log_reg model. 
+
+    config: dict of learning parameters
+    train_dict: dict {"x":ndarray, "y": ndarray}
+    
+    """
     num_epochs = config["num_epochs"]
     batch_size = config["batch_size"]
     lr = config["learning_rate"]
-    """train_dict: {"x":ndarray, "y": ndarray}"""
+    
     x, y = torch.Tensor(train_dict["x"]), torch.Tensor(train_dict["y"])
     population = x.shape[0]
     num_features = x.shape[1]
@@ -67,7 +74,7 @@ def train(config, train_dict):
         loss.backward()
         optimizer.step()
         
-        if (epoch) % 10 == 0:
+        if (epoch) % 50 == 0:
             x_test, labels_test = list(test_loader)[0]
             x_test = model(x_test)
             test_loss = torch.nn.functional.binary_cross_entropy(x_test,labels_test)
@@ -77,14 +84,25 @@ def train(config, train_dict):
 
 #TODO data load
 #TODO normalization and parameter precision cutoff for seal_models
-
+#%%
 if  __name__ == "__main__": 
-#learning rate schecule?
-    #for experimenting to make sure everything works
-    data = generate_random_data(5000,10)
+   
     yml_file = PurePath.joinpath(Path.cwd(),"configs.yaml")
+
     with open(yml_file) as f:
         cfgs = [yaml.load_all(f,Loader = yaml.FullLoader)][0]
-    trained_model = train(cfgs,data)
+    
+    if cfgs.data_path == None:
+    #for experimenting to make sure everything works
+        data = generate_random_data(5000,10)
+    else:
+        data = generate_random_data(5000,50)
+
+    trained_model = train(cfgs, data)
     save_file = PurePath.joinpath(Path.cwd(),cfgs["save_model_file"])
     torch.save(trained_model.state_dict(),save_file)
+
+#%%
+Path.cwd()
+
+#%%
