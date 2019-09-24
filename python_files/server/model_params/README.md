@@ -1,3 +1,6 @@
-This directory stores all of the trained model parameters. The files should stored as MODELNAME_param. For example, if a model was trained to predict mortality rates using logistic regression, the file should have a name like mortality_logreg_param to accound for the possibility of different model types. 
+This directory stores all of the model parameters for the model  post-training and for the training (e.g. learning rates). The directories are for each model. 
+
+They should each have a file for training named: config.yaml. 
+During training the models will be save as: model_params_(DATETIME)
 
 Files and description:
