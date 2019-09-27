@@ -1,1 +1,0 @@
-After models have been trained, they need to have been rewritten in PySEAL for evaluation only.  

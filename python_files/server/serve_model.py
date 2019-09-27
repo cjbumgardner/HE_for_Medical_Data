@@ -7,15 +7,30 @@ to model, sets up model (with params encoded); then evaluates the model; and sen
 the encrypted predictions back to the client.
 
 """
+import server.seal_functions as sf
+from pathlib import Path, PurePath
+import streamlit as st
 
-#TODO
+MODELPARMS = Path(__file__).resolve().parent.joinpath("model_params")
 
-#Injest encrypted data, context (security parameter is a property)
+MODELS = {"Mortality Risk":
+            {"path":"log_reg_mortality/model_24-09-2019-08_12_51",
+            "seal_function":sf.linear_reg_svr,
+            }
+        }   
 
-#Pull model parameters file and encode params
-
-#Set up seal_model with parameters. 
-
-#Evaluate model on encrypted data
-
-#Send encrypted predictions.
+def build_model_svr(model_keyvalue, inputs, encoder = None, context = None):
+    """Builds model from, seal_functions, model params.
+        model_keyvalue: key identifying model
+        inputs: properly formatted encrypted inputs for model
+        encoder: SEAL encoder object
+        context: SEAL context object
+    """
+    modeldict = MODELS[model_keyvalue]
+    params_path = MODELPARMS.joinpath(modeldict["path"])
+    alias = modeldict["seal_function"]
+    try: 
+        func = alias(params_path, context=context, encoder=encoder)
+    except Exception as e:
+        raise ValueError(f"There was a problem with your inputs: {e}")
+    return func.eval(inputs)
