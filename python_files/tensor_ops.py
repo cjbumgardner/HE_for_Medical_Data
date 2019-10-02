@@ -3,10 +3,11 @@ This file is intended as a library of tensor operations and vectorized
 operations written in PySEAL. 
 
 """
-
+#TODO multiplication in pyseal won't allow values to be zero. make sure all 0's are epsilon
 import streamlit as st
 import seal 
 import numpy as np
+from copy import deepcopy as dc
 from seal import ChooserEvaluator, \
     Ciphertext, \
     Decryptor, \
@@ -29,8 +30,10 @@ from seal import ChooserEvaluator, \
 
 class vec_encoder(object):
     def __init__(self, encoder):
+        """encoder: instantiated pyseal encoder object"""
         self.vec_enco = np.vectorize(encoder.encode)
     def __call__(self,arr):
+        """arr: ndarray of proper int/float type relative to encoder"""
         empty = np.empty(arr.shape)
         empty = self.vec_enco(arr)
         return empty
@@ -38,9 +41,11 @@ class vec_encoder(object):
 
 class vec_encryptor(object):
     def __init__(self,public_key, context):
+
         self.vec_encryptor = np.vectorize(Encryptor(context, public_key).encrypt)
         self.parms = context.parms()
     def __call__(self, arr):
+        """arr: ndarray of Plaintext() objects."""
         size = arr.size
         empty_cipher = [Ciphertext(self.parms) for i in range(size)]
         cipher_arr = np.array(empty_cipher)
@@ -76,13 +81,13 @@ class vec_plain_multiply(object):
         evaluator = Evaluator(context)
         if decryptor != None:
             self.decryptor = decryptor
-        self.vec_plain_muli = np.vectorize(evaluator.multiply_plain)
         self.parms = context.parms()
     def __call__(self, cipher, plain):
-        if cipher.shape[1:] != plain.shape[1:]:
+        if cipher.shape[-1] != plain.shape[0]:
             raise ValueError("The cipher shape and plain shape don't match.")
         for i in range(cipher.shape[0]):
-            self.vec_plain_muli(cipher[i,:],plain)
+            for j in range(cipher.shape[1]):
+                evaluator.multiply_plain(cipher[i,j],plain[j])
         return cipher
 
 class vec_add_many(object):
@@ -106,6 +111,21 @@ class cipher_dot_plain(object):
         m = self.multiply(cipher, plain)
         return self.add(m)
 
+class ciphermatrixprod():
+    """Matrix multiplication"""
+    def __init__(self,context):
+        self.dot = cipher_dot_plain(context)
+    def __call__(self,x,y):
+        b = x.shape[-1]
+        c = y.shape[0]
+        d = y.shape[-1]
+        if b != c:
+            raise ValueError("Mismatch of shapes")
+        copies = [dc(x) for i in range(d)]
+        print(copies[0], y[:,0].shape)
+        out = [self.dot(copies[j],y[:,j]).squeeze() for j in range(d)]
+        return np.array(out).T
+
 def print_parameters(context):
     print("/ Encryption parameters:")
     print("| poly_modulus: " + context.poly_modulus().to_string())
@@ -117,3 +137,44 @@ def print_parameters(context):
     st.write("| coeff_modulus_size: " + (str)(context.total_coeff_modulus().significant_bit_count()) + " bits")
     st.write("| plain_modulus: " + (str)(context.plain_modulus().value()))
     st.write("| noise_standard_deviation: " + (str)(context.noise_standard_deviation()))
+
+#%%
+parms = EncryptionParameters()
+parms.set_poly_modulus("1x^4096 + 1")
+parms.set_coeff_modulus(seal.coeff_modulus_128(4096))
+parms.set_plain_modulus(1 << 8)
+context = SEALContext(parms)
+encoder = FractionalEncoder(context.plain_modulus(),context.poly_modulus(),64,32,3)
+keygen = KeyGenerator(context)
+public_key = keygen.public_key()
+secret_key = keygen.secret_key()
+encryptor = Encryptor(context, public_key)
+decryptor = Decryptor(context, secret_key)
+value1 = 5.0
+plain1 = encoder.encode(value1)
+value2 = -7.0
+plain2 = encoder.encode(value2)
+evaluator = Evaluator(context)
+encrypted1 = Ciphertext()
+encrypted2 = Ciphertext()
+print("Encrypting plain1: ")
+encryptor.encrypt(plain1, encrypted1)
+print("Done (encrypted1)")
+print("Encrypting plain2: ")
+encryptor.encrypt(plain2, encrypted2)
+print("Done (encrypted2)")
+
+#%%
+arr1 = np.array([i+1 for i in range(12)]).reshape((3,4))
+arr2 = np.array([i+1 for i in range(8)]).reshape((4,2))
+code = vec_encoder(encoder)(arr1)
+
+cipher = vec_encryptor(public_key,context)(code)
+plainy = vec_encoder(encoder)(arr2)
+ans= ciphermatrixprod(context)(cipher, plainy)
+Ans = vec_decryptor(secret_key,context)(ans)
+ANS= vec_decoder(encoder)(Ans)
+ANS
+
+
+
