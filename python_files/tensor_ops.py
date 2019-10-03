@@ -3,6 +3,7 @@ This file is intended as a library of tensor operations and vectorized
 operations written in PySEAL. 
 
 """
+#%%
 #TODO multiplication in pyseal won't allow values to be zero. make sure all 0's are epsilon
 import streamlit as st
 import seal 
@@ -41,7 +42,6 @@ class vec_encoder(object):
 
 class vec_encryptor(object):
     def __init__(self,public_key, context):
-
         self.vec_encryptor = np.vectorize(Encryptor(context, public_key).encrypt)
         self.parms = context.parms()
     def __call__(self, arr):
@@ -89,7 +89,11 @@ class vec_plain_multiply(object):
             for j in range(cipher.shape[1]):
                 evaluator.multiply_plain(cipher[i,j],plain[j])
         return cipher
-
+        
+class vec_cipher_multiply():
+    def __init__(self,context):
+        pass
+        
 class vec_add_many(object):
     """Given a batch of arrays, this adds all the elements of each array """
     def __init__(self, context, decryptor = None):
@@ -102,6 +106,23 @@ class vec_add_many(object):
             cipher = np.array(cipher)
         return cipher.reshape((arr.shape[0],1))
 
+class vec_add_plain(object):
+    """Add bias vector to features. 
+    bias: vector.shape = n,m Should be an ndarray of Plaintext()
+    matrix: matrix.shape = (batch,n,m). Should be an array of Ciphertext()
+    """
+    def __init__(self, context):
+        evaluator = Evaluator(context)
+        self.vec_add = np.vectorize(evaluator.add_plain)
+    def __call__(self, matrix, bias):
+        sh = matrix.shape
+        if sh[1:] != bias.shape:
+            raise ValueError("Incompatible matrix and bias shapes. Make sure matrix tensor is 3D.")
+        else:
+            for i in range(sh[0]):
+                self.vec_add(matrix[i,...].flatten(),bias.flatten())
+        return matrix.reshape(matrix.shape)
+
 class cipher_dot_plain(object):
     def __init__(self, context):
         self.context = context
@@ -112,19 +133,43 @@ class cipher_dot_plain(object):
         return self.add(m)
 
 class ciphermatrixprod():
-    """Matrix multiplication"""
+    """Matrix multiplication which allows for batching in 0th dim of first input."""
     def __init__(self,context):
         self.dot = cipher_dot_plain(context)
     def __call__(self,x,y):
-        b = x.shape[-1]
-        c = y.shape[0]
+        b = x.shape[0]
         d = y.shape[-1]
-        if b != c:
+        if x.shape[-1] != y.shape[0]:
             raise ValueError("Mismatch of shapes")
-        copies = [dc(x) for i in range(d)]
-        print(copies[0], y[:,0].shape)
-        out = [self.dot(copies[j],y[:,j]).squeeze() for j in range(d)]
-        return np.array(out).T
+        out = None
+        for k in range(b):
+            copies = [dc(x[k,...]) for i in range(d)]
+            arr = np.array([self.dot(copies[j],y[:,j]).squeeze() for j in range(d)]).T
+            if out == None:
+                out = arr
+            else: 
+                out = np.stack([out, arr], axis=0)
+        return np.array(out)
+
+class PlainLinear():
+    """Enacts Ax+b for matrix A and bias b"""
+    def __init__(self, context, matrix, bias):
+        """
+        context: pyseal context object
+        matrix: ndarray of properly encoded Plaintext objects
+        bias: numpy vector of properly encoded Plaintext objects
+        """
+        self.mul = ciphermatrixprod(context)
+        self.add = vec_add_plain(context)
+        self.A = matrix
+        self.b = bias
+    def __call__(self, x):
+        out = self.mul(x, self.A)
+        out = self.add(out, self.b)
+        return out
+
+
+
 
 def print_parameters(context):
     print("/ Encryption parameters:")
@@ -165,16 +210,21 @@ encryptor.encrypt(plain2, encrypted2)
 print("Done (encrypted2)")
 
 #%%
-arr1 = np.array([i+1 for i in range(12)]).reshape((3,4))
-arr2 = np.array([i+1 for i in range(8)]).reshape((4,2))
+arr1 = np.array([i+1 for i in range(12)]).reshape((1,3,4))
+arr2 = np.array([i+1 for i in range(20)]).reshape((4,5))
+arr3 = np.array([i+1 for i in range(5)])
 code = vec_encoder(encoder)(arr1)
-
 cipher = vec_encryptor(public_key,context)(code)
 plainy = vec_encoder(encoder)(arr2)
+bias = vec_encoder(encoder)(arr3)
+#%%
 ans= ciphermatrixprod(context)(cipher, plainy)
 Ans = vec_decryptor(secret_key,context)(ans)
 ANS= vec_decoder(encoder)(Ans)
 ANS
-
-
-
+#%%
+lin = Linear(context, plainy, bias)(cipher)
+#%%
+Lin = vec_decryptor(secret_key,context)(lin)
+LIN = vec_decoder(encoder)(Lin)
+LIN
