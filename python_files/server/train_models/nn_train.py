@@ -7,9 +7,10 @@ Train a logistic regression model.
 """
 import torch
 import torch.nn as nn
+import torch.utils.data
 from torch.autograd import Variable
 from torch.nn.utils import weight_norm
-from torch.nn.functional import relu
+from torch.nn import ReLU
 import yaml
 import pickle
 from pathlib import Path, PurePath
@@ -60,11 +61,11 @@ class fully_conn(nn.Module):
         network = [weight_norm(nn.Linear(input_size,layers[0]))]
         numlayer = len(layers)
         if activation == "relu":
-            network.append(relu())
+            network.append(ReLU(inplace=False))
             for i in range(numlayer-1):
                 l = weight_norm(nn.Linear(layers[i],layers[i+1]))
                 if i < numlayer-2:
-                    network.extend([l,relu()])
+                    network.extend([l,ReLU(inplace=False)])
                 else:
                     network.append(l)
         if activation == "poly":

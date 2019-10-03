@@ -2,7 +2,7 @@
 modeltype: "nn"
 learning_rate : 0.0001
 batch_size: 30
-num_epochs: 25
+num_epochs: 100
 activation: "poly"
-layers: [4,4,1]
+layers: [4,1]
 degrees: [1,2]
