@@ -3,7 +3,6 @@ This file is intended as a library of tensor operations and vectorized
 operations written in PySEAL. 
 
 """
-#%%
 #TODO multiplication in pyseal won't allow values to be zero. make sure all 0's are epsilon
 import streamlit as st
 import seal 
@@ -168,9 +167,6 @@ class PlainLinear():
         out = self.add(out, self.b)
         return out
 
-
-
-
 def print_parameters(context):
     print("/ Encryption parameters:")
     print("| poly_modulus: " + context.poly_modulus().to_string())
@@ -182,49 +178,3 @@ def print_parameters(context):
     st.write("| coeff_modulus_size: " + (str)(context.total_coeff_modulus().significant_bit_count()) + " bits")
     st.write("| plain_modulus: " + (str)(context.plain_modulus().value()))
     st.write("| noise_standard_deviation: " + (str)(context.noise_standard_deviation()))
-
-#%%
-parms = EncryptionParameters()
-parms.set_poly_modulus("1x^4096 + 1")
-parms.set_coeff_modulus(seal.coeff_modulus_128(4096))
-parms.set_plain_modulus(1 << 8)
-context = SEALContext(parms)
-encoder = FractionalEncoder(context.plain_modulus(),context.poly_modulus(),64,32,3)
-keygen = KeyGenerator(context)
-public_key = keygen.public_key()
-secret_key = keygen.secret_key()
-encryptor = Encryptor(context, public_key)
-decryptor = Decryptor(context, secret_key)
-value1 = 5.0
-plain1 = encoder.encode(value1)
-value2 = -7.0
-plain2 = encoder.encode(value2)
-evaluator = Evaluator(context)
-encrypted1 = Ciphertext()
-encrypted2 = Ciphertext()
-print("Encrypting plain1: ")
-encryptor.encrypt(plain1, encrypted1)
-print("Done (encrypted1)")
-print("Encrypting plain2: ")
-encryptor.encrypt(plain2, encrypted2)
-print("Done (encrypted2)")
-
-#%%
-arr1 = np.array([i+1 for i in range(12)]).reshape((1,3,4))
-arr2 = np.array([i+1 for i in range(20)]).reshape((4,5))
-arr3 = np.array([i+1 for i in range(5)])
-code = vec_encoder(encoder)(arr1)
-cipher = vec_encryptor(public_key,context)(code)
-plainy = vec_encoder(encoder)(arr2)
-bias = vec_encoder(encoder)(arr3)
-#%%
-ans= ciphermatrixprod(context)(cipher, plainy)
-Ans = vec_decryptor(secret_key,context)(ans)
-ANS= vec_decoder(encoder)(Ans)
-ANS
-#%%
-lin = Linear(context, plainy, bias)(cipher)
-#%%
-Lin = vec_decryptor(secret_key,context)(lin)
-LIN = vec_decoder(encoder)(Lin)
-LIN

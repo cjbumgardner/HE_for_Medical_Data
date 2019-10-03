@@ -1,0 +1,8 @@
+#Config file for nn with poly activations aX+bX^3
+modeltype: "nn"
+learning_rate : 0.001
+batch_size: 30
+num_epochs: 10
+activation: "poly"
+layers: [128,64,1]
+degrees: [1,3]

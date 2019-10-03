@@ -14,7 +14,7 @@ import streamlit as st
 MODELPARMS = Path(__file__).resolve().parent.joinpath("model_params")
 
 MODELS = {"Mortality Risk":
-            {"path":"log_reg_mortality/model_24-09-2019-08_12_51",
+            {"path":"log_reg_mortality",
             "seal_function":sf.linear_reg_svr,
             }
         }   

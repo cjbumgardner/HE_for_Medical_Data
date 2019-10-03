@@ -1,1 +1,0 @@
-Tensor operations written for PySEAL. 
