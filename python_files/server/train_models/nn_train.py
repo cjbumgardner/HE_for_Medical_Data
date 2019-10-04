@@ -68,7 +68,7 @@ class fully_conn(nn.Module):
             for i in range(numlayer-1):
                 l = (f"weightedLinear{i+1}", weight_norm(nn.Linear(layers[i],layers[i+1])))
                 if i < numlayer-2:
-                    Relu = (f"relu{i+1}", Relu)
+                    Relu = (f"relu{i+1}", ReLU())
                     network.extend([l, Relu])
                 else:
                     network.append(l)
@@ -267,4 +267,6 @@ if  __name__ == "__main__":
         "optimizer_state_dict": optimizer.state_dict()
         }
     torch.save(d,model_file)
-    print(trained_model.state_dict().items())
+    print(trained_model.state_dict()["nnet.poly0.coefficients"])
+    print(trained_model.state_dict()["nnet.poly1.coefficients"])
+
