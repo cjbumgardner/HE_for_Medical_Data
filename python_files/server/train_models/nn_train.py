@@ -8,7 +8,6 @@ Train a logistic regression model.
 import torch
 import torch.nn as nn
 import torch.utils.data
-from torch.autograd import Variable
 from torch.nn.utils import weight_norm
 from torch.nn import ReLU
 import yaml
@@ -18,6 +17,8 @@ import numpy as np
 import streamlit as st
 import argparse
 from datetime import datetime
+from collections import OrderedDict
+
 
 def generate_random_data(num_data_samp, data_dim):
     "Generate some random data for log reg."
@@ -37,16 +38,17 @@ class poly(nn.Module):
     def __init__(self, degreelist):
         super(poly,self).__init__()
         self.degreelist = degreelist
-        p = len(degreelist)
-        self.coeff = torch.ones(p,dtype=torch.float32,requires_grad=True)
+        p = len(degreelist) 
+        arr = np.ones(p,dtype=np.float32)
+        coeff = torch.nn.Parameter(torch.tensor(arr), requires_grad=True)
+        self.register_parameter("coefficients", coeff)
     def forward(self,x):
-        out = [x ** n for n in self.degreelist]
+        out = [torch.pow(x,n) for n in self.degreelist]
         shape = x.shape
         out = torch.cat([j.reshape(*shape,1) for j in out],dim=-1)
-        out = out * self.coeff
+        out = out * self.coefficients
         out = out.sum(-1)
         return out
-
 
 class fully_conn(nn.Module):
     """Creates a fully connected neural network according to specs.
@@ -58,27 +60,33 @@ class fully_conn(nn.Module):
         for the degrees specified. E.g.: [2,3]-> activation=  ax^2 +bx^3. """
     def __init__(self, input_size, layers, activation, degrees = None):
         super(fully_conn, self).__init__()
-        network = [weight_norm(nn.Linear(input_size,layers[0]))]
+        network = [("weightedLinear0", weight_norm(nn.Linear(input_size,layers[0])))]
         numlayer = len(layers)
         if activation == "relu":
-            network.append(ReLU(inplace=False))
+            Relu = ("relu0", ReLU())
+            network.append(Relu)
             for i in range(numlayer-1):
-                l = weight_norm(nn.Linear(layers[i],layers[i+1]))
+                l = (f"weightedLinear{i+1}", weight_norm(nn.Linear(layers[i],layers[i+1])))
                 if i < numlayer-2:
-                    network.extend([l,ReLU(inplace=False)])
+                    Relu = (f"relu{i+1}", Relu)
+                    network.extend([l, Relu])
                 else:
                     network.append(l)
         if activation == "poly":
-            network.append(poly(degrees))
+            Poly = (f"poly0", poly(degrees))
+            network.append(Poly)
             p = len(degrees)
             for i in range(numlayer-1):
-                l = weight_norm(nn.Linear(layers[i],layers[i+1]))
+                l = (f"weightedLinear{i+1}",weight_norm(nn.Linear(layers[i],layers[i+1])))
                 if i < numlayer-2:
-                    network.extend([l,poly(degrees)])
+                    Poly = (f"poly{i+1}", poly(degrees))
+                    network.extend([l,Poly])
                 else:
                     network.append(l)
-        self.nnet = nn.Sequential(*network)
+        self.nnet = nn.Sequential(OrderedDict(network))
+        
     def forward(self,x):
+        
         logits = self.nnet(x)
         return logits
     def predict(self,x):
@@ -95,7 +103,7 @@ class logreg(nn.Module):
     def predict(self,x):
         return nn.functional.sigmoid(self.forward(x))
 
-def train(config, train_data, model):
+def train(config, train_data, model, optimizer_state=None):
     """
     Training for mortality models. 
 
@@ -118,6 +126,8 @@ def train(config, train_data, model):
                                                shuffle = True,
                                             )
     optimizer = torch.optim.Adam(model.parameters(),lr = lr)
+    if optimizer_state != None:
+        optimizer.load_state_dict(optimizer_state)
     loss_values = []
     for epoch in range(num_epochs):
         round = 0
@@ -133,7 +143,7 @@ def train(config, train_data, model):
                 print(f"epoch: {epoch}/{num_epochs}; loss: {loss}; test_loss: {test_loss}")
                 loss_values.append({"step": round*epoch, "loss": loss, "test_loss": test_loss})
 
-    return model, loss_values
+    return model, optimizer, loss_values
 
 def convert_mortality_data(train_dict):
     new = {}
@@ -233,17 +243,28 @@ if  __name__ == "__main__":
             if path.name[0:5] == "model":
                 latest_path = path
                 break
-        model.load_state_dict(torch.load(latest_path))
+        checkpoint = torch.load(latest_path)
+        model_state = checkpoint["model_state_dict"]
+        optimizer_state = checkpoint["optimizer_state_dict"]
+        model.load_state_dict(model_state)
+    else:
+        optimizer_state=None
 
     #Train the model 
     print("Training the model...")
-    print(model)
-    trained_model, loss_values = train(configs, train_data, model)
+    trained_model, optimizer, loss_values = train(configs, 
+                                                train_data,
+                                                model, 
+                                                optimizer_state=optimizer_state,
+                                                )
     now = datetime.now().strftime("%d-%m-%Y-%H_%M_%S")
     loss_values_file = modeldir.joinpath(f"loss_values_{now}.pkl")
     with open(loss_values_file, "wb") as f:
         pickle.dump(loss_values,f)
     model_file = modeldir.joinpath(f"model_{now}.pkl")
     print(f"Finished training. Saving model parameters to {model_file}")
-    torch.save(trained_model.state_dict(),model_file)
-
+    d = {"model_state_dict": trained_model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict()
+        }
+    torch.save(d,model_file)
+    print(trained_model.state_dict().items())
