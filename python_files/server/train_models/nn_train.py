@@ -10,11 +10,11 @@ import torch.nn as nn
 import torch.utils.data
 from torch.nn.utils import weight_norm
 from torch.nn import ReLU
+import numpy as np
+import streamlit as st
 import yaml
 import pickle
 from pathlib import Path, PurePath
-import numpy as np
-import streamlit as st
 import argparse
 from datetime import datetime
 from collections import OrderedDict
@@ -86,11 +86,11 @@ class fully_conn(nn.Module):
         self.nnet = nn.Sequential(OrderedDict(network))
         
     def forward(self,x):
-        
         logits = self.nnet(x)
         return logits
+
     def predict(self,x):
-        return nn.functional.sigmoid(self.forward(x))
+        return torch.sigmoid(self.forward(x))
 
 class logreg(nn.Module):
     def __init__(self, input_size, classes):
@@ -101,7 +101,7 @@ class logreg(nn.Module):
         return self.logistic_reg(x)
 
     def predict(self,x):
-        return nn.functional.sigmoid(self.forward(x))
+        return torch.sigmoid(self.forward(x))
 
 def train(config, train_data, model, optimizer_state=None):
     """
@@ -129,8 +129,8 @@ def train(config, train_data, model, optimizer_state=None):
     if optimizer_state != None:
         optimizer.load_state_dict(optimizer_state)
     loss_values = []
+    round = 0
     for epoch in range(num_epochs):
-        round = 0
         for (x,y) in train_loader:
             outputs = model(x) 
             optimizer.zero_grad()
@@ -141,19 +141,23 @@ def train(config, train_data, model, optimizer_state=None):
                 pred = model(test_x)
                 test_loss = torch.nn.functional.binary_cross_entropy_with_logits(pred,test_y)
                 print(f"epoch: {epoch}/{num_epochs}; loss: {loss}; test_loss: {test_loss}")
-                loss_values.append({"step": round*epoch, "loss": loss, "test_loss": test_loss})
-
+                loss_values.append({"step": round*50, "loss": loss, "test_loss": test_loss})
+            round+=1
     return model, optimizer, loss_values
 
-def convert_mortality_data(train_dict):
+def convert_mortality_data(train_dict, test=False):
+    """Converts mortality data dictionary with keys ("train", "test") or just 
+    ("test") for testing only when train == False.
+    """
     new = {}
-    trainset = train_dict["train"]
+    if test == False:
+        trainset = train_dict["train"]
+        new["train_x"] = torch.Tensor(trainset.drop(columns = ["expire"]).values)
+        new["train_y"] = torch.Tensor(trainset.expire.values).unsqueeze_(1)
     testset = train_dict["test"]
-    new["train_x"] = torch.Tensor(trainset.drop(columns = ["expire"]).values)
-    new["train_y"] = torch.Tensor(trainset.expire.values).unsqueeze_(1)
     new["test_x"] = torch.Tensor(testset.drop(columns = ["expire"]).values)
     new["test_y"] = torch.Tensor(testset.expire.values).unsqueeze_(1)
-    new["num_features"] = new["train_x"].shape[1]
+    new["num_features"] = new["test_x"].shape[1]
     return new
 
 if  __name__ == "__main__": 
@@ -181,6 +185,11 @@ if  __name__ == "__main__":
                         action = "store_true",
                         help = "Add this flag to pick up training at the last model checkpoint",
                         )
+    parser.add_argument("--test",
+                        action = "store_true",
+                        help = "Add this flag for testing on data under 'test' key in \
+                            path input for --datadir"
+                        )
     #Get all parsed arguments
     serverdir = Path.cwd().parent
     args = parser.parse_args()
@@ -205,8 +214,8 @@ if  __name__ == "__main__":
         raise ValueError(f"There was an exception raised when trying to load the data: {e}")
 
     #Turn data into torch.tensor. For the future: can remove this to processing pipeline.
-    try: 
-        train_data = convert_mortality_data(data_dict)
+    try:
+        train_data = convert_mortality_data(data_dict, test = args.test)
     except Exception as e:
         raise ValueError(f"There was an issue with the data format: {e}")
     
@@ -233,9 +242,9 @@ if  __name__ == "__main__":
             model = logreg(input_size, layers)
         except Exception as e:
             raise ValueError(f"The model couldn't load: {e}")
-    
-    #Pick up training 
-    if args.continuetrain == True:
+   
+    #Initialize model with pretrained params to continue training or test ...
+    if args.continuetrain == True or args.test == True:
         list_of_paths = modeldir.glob("*")
         paths = sorted(list_of_paths, key=lambda p: p.stat().st_ctime)
         paths.reverse()
@@ -248,25 +257,38 @@ if  __name__ == "__main__":
         optimizer_state = checkpoint["optimizer_state_dict"]
         model.load_state_dict(model_state)
     else:
-        optimizer_state=None
-
-    #Train the model 
-    print("Training the model...")
-    trained_model, optimizer, loss_values = train(configs, 
-                                                train_data,
-                                                model, 
-                                                optimizer_state=optimizer_state,
-                                                )
-    now = datetime.now().strftime("%d-%m-%Y-%H_%M_%S")
-    loss_values_file = modeldir.joinpath(f"loss_values_{now}.pkl")
-    with open(loss_values_file, "wb") as f:
-        pickle.dump(loss_values,f)
-    model_file = modeldir.joinpath(f"model_{now}.pkl")
-    print(f"Finished training. Saving model parameters to {model_file}")
-    d = {"model_state_dict": trained_model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict()
-        }
-    torch.save(d,model_file)
-    print(trained_model.state_dict()["nnet.poly0.coefficients"])
-    print(trained_model.state_dict()["nnet.poly1.coefficients"])
+        optimizer_state = None
+    #Predict only 
+    if args.test == True:
+        test_x = train_data["test_x"]
+        test_y = train_data["test_y"].squeeze().numpy()
+        print("Model loaded. Now making predictions...")
+        y = model.predict(test_x).squeeze().detach().numpy()
+        predictions = np.stack([test_y, y], axis=-1) 
+        now = datetime.now().strftime("%d-%m-%Y-%H_%M_%S")
+        print("Saving predictions alongside true values...")
+        file = modeldir/f"predictions_{now}"
+        with open(file, "wb") as f:
+            pickle.dump(predictions, f)
+        print(f"Saved to {file}.")
+    else:
+        #Train the model 
+        print("Training the model...")
+        trained_model, optimizer, loss_values = train(configs, 
+                                                    train_data,
+                                                    model, 
+                                                    optimizer_state=optimizer_state,
+                                                    )
+        now = datetime.now().strftime("%d-%m-%Y-%H_%M_%S")
+        loss_values_file = modeldir.joinpath(f"loss_values_{now}.pkl")
+        with open(loss_values_file, "wb") as f:
+            pickle.dump(loss_values,f)
+        model_file = modeldir.joinpath(f"model_{now}.pkl")
+        print(f"Finished training. Saving model parameters to {model_file}")
+        d = {"model_state_dict": trained_model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict()
+            }
+        torch.save(d,model_file)
+        print(trained_model.state_dict()["nnet.poly0.coefficients"])
+        print(trained_model.state_dict()["nnet.poly1.coefficients"])
 
