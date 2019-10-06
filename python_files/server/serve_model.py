@@ -7,6 +7,8 @@ to model, sets up model (with params encoded); then evaluates the model; and sen
 the encrypted predictions back to the client.
 
 """
+#TODO fix this for nn, filepaths, and model type paths
+
 import server.seal_functions as sf
 from pathlib import Path, PurePath
 import streamlit as st

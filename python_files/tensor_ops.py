@@ -3,6 +3,7 @@ This file is intended as a library of tensor operations and vectorized
 operations written in PySEAL. 
 
 """
+#%%
 #TODO multiplication in pyseal won't allow values to be zero. make sure all 0's are epsilon
 import streamlit as st
 import seal 
@@ -72,38 +73,34 @@ class vec_decoder(object):
         return empty
 
 class vec_plain_multiply(object):
-    """multiply (cipher, plain)
-    cipher.shape= (batch, plain.shape)
+    """Multiply componentwise cipher and plain along cipher's last dimension
+    cipher.shape[-1]= plain.shape
     """
-    def __init__(self, context, decryptor = None):
-        self.context = context
-        evaluator = Evaluator(context)
-        if decryptor != None:
-            self.decryptor = decryptor
-        self.parms = context.parms()
+    def __init__(self, context):
+        self.evaluator = Evaluator(context)
     def __call__(self, cipher, plain):
+        """In order to not affect cipher for other calculations, make copy"""
+        cipher = dc(cipher)
         if cipher.shape[-1] != plain.shape[0]:
             raise ValueError("The cipher shape and plain shape don't match.")
-        for i in range(cipher.shape[0]):
-            for j in range(cipher.shape[1]):
-                evaluator.multiply_plain(cipher[i,j],plain[j])
+        for indices in np.ndindex(cipher.shape[:-1]):
+            print(indices)
+            for i in range(plain.shape[0]):
+                self.evaluator.multiply_plain(cipher[indices][i],plain[i])
         return cipher
         
-class vec_cipher_multiply():
-    def __init__(self,context):
-        pass
-        
 class vec_add_many(object):
-    """Given a batch of arrays, this adds all the elements of each array """
-    def __init__(self, context, decryptor = None):
-        self.evaluator = Evaluator(context)
+    """Given an array, this adds all the elements along last dimension """
+    def __init__(self, context):
+        self.add = Evaluator(context).add_many
     def __call__(self, arr):
-        size = arr.shape[0]
-        cipher = [Ciphertext() for i in range(size)]
-        for i in range(size):
-            self.evaluator.add_many(list(arr[i,:].flatten()),cipher[i])
-            cipher = np.array(cipher)
-        return cipher.reshape((arr.shape[0],1))
+        shape = arr.shape[:-1]
+        size = np.prod(shape)
+        ciphers = np.array([Ciphertext() for i in range(size)])
+        ciphers = ciphers.reshape(shape)
+        for indices in np.ndindex(shape):
+            self.add(list(arr[indices]),ciphers[indices])
+        return ciphers
 
 class vec_add_plain(object):
     """Add bias vector to features. 
@@ -150,7 +147,7 @@ class ciphermatrixprod():
                 out = np.stack([out, arr], axis=0)
         return np.array(out)
 
-class PlainLinear():
+class PlainLinear(object):
     """Enacts Ax+b for matrix A and bias b"""
     def __init__(self, context, matrix, bias):
         """
@@ -167,6 +164,62 @@ class PlainLinear():
         out = self.add(out, self.b)
         return out
 
+class Pow(object):
+    """Raises x to the power n for n >= 1."""
+    def __init__(self, context):
+        evaluator = Evaluator(context)
+        self.mul = np.vectorize(evaluator.multiply)
+    def __call__(self, x, n):
+        """For polynomials with multiple degrees, we need to not affect x. 
+        This is in reference to mult happening in place or passed to a new
+        ciphertext; we need the latter.
+        x: array of ciphers
+        n: degree int >=1 
+        """
+        if n == 1:
+            return dc(x)
+        #xc copy x, mc copy for multiplying
+        xc = dc(x.flatten())
+        mc = dc(x.flatten())
+        for i in range(n-1):
+            self.mul(xc, mc)
+        return (xc.reshape(x.shape))
+
+
+class Poly(object):
+    """Compute poly(x) where x is a polynomial with no constant term, and 
+    x is an np array of encrypted values. Specifically, instantiating creates
+    a polynomial with unknown coefficients. In __call__, coeff are specified.
+    This is for nn where all the layers have the same type of polynomial 
+    activation functions with trainable coefficients."""
+    def __init__(self, context, coeff, degrees):
+        self.pow = Pow(context)
+        self.mul_plain = vec_plain_multiply(context)
+        self.add_many = vec_add_many(context)
+        self.degrees = degrees
+        self.coeff = coeff
+    def __call__(self, x):
+        powers = np.stack([self.pow(x,d) for d in self.degrees],axis = -1)
+        poly = self.mul_plain(powers, self.coeff)
+        poly = self.add_many(poly)
+        return poly
+
+class vec_noise_budget(object):
+    """For inspecting various measures of the noise budget for elements of an array."""
+    def __init__(self,decryptor,arr):
+        self.shape = arr.shape
+        farr = arr.flatten()
+        self.__vec_budget = np.vectorize(decryptor.invariant_noise_budget)(farr)
+    @property
+    def mean(self):
+        return np.mean(self.__vec_budget)
+    @property
+    def min(self):
+        return np.min(self.__vec_budget)
+    @property
+    def budget(self):
+        return self.__vec_budget.reshape(self.shape)
+    
 def print_parameters(context):
     print("/ Encryption parameters:")
     print("| poly_modulus: " + context.poly_modulus().to_string())
@@ -178,3 +231,48 @@ def print_parameters(context):
     st.write("| coeff_modulus_size: " + (str)(context.total_coeff_modulus().significant_bit_count()) + " bits")
     st.write("| plain_modulus: " + (str)(context.plain_modulus().value()))
     st.write("| noise_standard_deviation: " + (str)(context.noise_standard_deviation()))
+
+#DELETE ME
+def scratchwork():
+    """"Pyseal scratch"""
+    parms = EncryptionParameters()
+    parms.set_poly_modulus("1x^8192 + 1")
+    parms.set_coeff_modulus(seal.coeff_modulus_128(8192))
+    parms.set_plain_modulus(1 << 8)
+    context = SEALContext(parms)
+    encoder = FractionalEncoder(context.plain_modulus(),context.poly_modulus(),64,32,3)
+    keygen = KeyGenerator(context)
+    public_key = keygen.public_key()
+    secret_key = keygen.secret_key()
+    encryptor = Encryptor(context, public_key)
+    decryptor = Decryptor(context, secret_key)
+    value1 = 5.0
+    plain1 = encoder.encode(value1)
+    value2 = -7.0
+    plain2 = encoder.encode(value2)
+    evaluator = Evaluator(context)
+    encrypted1 = Ciphertext()
+    encrypted2 = Ciphertext()
+    print("Encrypting plain1: ")
+    encryptor.encrypt(plain1, encrypted1)
+    print("Done (encrypted1)")
+    print("Encrypting plain2: ")
+    encryptor.encrypt(plain2, encrypted2)
+    print("Done (encrypted2)")
+
+    arr1 = np.array([i+1 for i in range(24)]).reshape((2,3,4))
+    arr2 = np.array([i+1 for i in range(20)]).reshape((4,5))
+    arr3 = np.array([i+2 for i in range(2)])
+
+    code = vec_encoder(encoder)(arr1)
+    cipher = vec_encryptor(public_key,context)(code)
+    plainy = vec_encoder(encoder)(arr3)
+    #bias = vec_encoder(encoder)(arr3)
+    out = Poly(context,[1,2])(cipher,plainy)
+    #out = vec_plain_multiply(context)(cipher,plainy)
+    #out = Pow(context)(cipher,1)
+    Out = vec_decryptor(secret_key,context)(out)
+    OUT= vec_decoder(encoder)(Out)
+    print(OUT)
+    print(vec_noise_budget(decryptor,out).budget)
+
