@@ -1,25 +1,21 @@
 """This a file of functions to run on encrypted inputs using PySEAL.
-They all need:
+All models need:
+__init__ args:
     encoder: to encode parameters properly
+    keygen: initialized SEAL key generator object
     context: SEAL context object for knowing the multiplication ring.
     model_dir: path to directory with the model parameters, the model file with 
         the most recent date on it is chosen
-    
-    
+__call__ args:
+    x: encrypted input encoded with the same encoder from args in __init__
 
-All classes should be of this basic structure:
- 
-class FUNCTION:
-   def __init__(parameters, encoder=None, context=None):
-   def eval(input) 
 """
 import torch
 import tensor_ops as tops
 import os
 from pathlib import Path
+import yaml
 
-#experiments leave this change dir out. 
-#path = Path.cwd()/"python_files"/"server"/"model_params"
 
 def most_recent_model(dir_to_models):
     if isinstance(dir_to_models,str):
@@ -41,7 +37,7 @@ class linear_reg_svr(object):
         weight_v: (list) normalized weight from log_reg training
         enc_weight_v: (list) weights encoded with 
     """
-    def __init__(self, log_reg_model_dir, encoder = None, context = None):
+    def __init__(self, log_reg_model_dir, encoder = None, context = None, keygen=None):
         """
         log_reg_model_path: path dir with model weights.
         context: SEAL context object for encryption scheme
@@ -73,14 +69,14 @@ class linear_reg_svr(object):
         
         return y
 
-def nn_svr(object):
+class nn_svr(object):
     """
     Fully connected NN with poly activations. 
     Properties: 
         context
     """
 
-    def __init__(self, nn_model_path, encoder, context, ):
+    def __init__(self, nn_model_path, encoder = None, context = None,  keygen = None):
 
         coder = tops.vec_encoder(encoder)
         if isinstance(nn_model_path, str):
@@ -110,39 +106,91 @@ def nn_svr(object):
         #due to weight normalization, we need to recombine weight_g weight_v
         #set up pyseal linear op
         self.model = []
-        for i in range(len(l)):
-            b = modelparm[f"nnet.weightedLinear{i}.bias"].numpy()
-            wg = modelparm[f"nnet.weightedLinear{i}.weight_g"].numpy() 
-            wv = modelparm[f"nnet.weightedLinear{i}.weight_v"].numpy()
+        for i in range(l):
+            b = modelparm[f"nnet.weightedLinear{i}.bias"].numpy().astype(np.float32)
+            wg = modelparm[f"nnet.weightedLinear{i}.weight_g"].numpy().astype(np.float32) 
+            wv = modelparm[f"nnet.weightedLinear{i}.weight_v"].numpy().astype(np.float32)
             w = wv * wg
-            p = modelparm[f"nnet.poly{i}.coefficients"].numpy()
             bcode = coder(b)
-            wcode = coder(w)
-            pcode = coder(p)
+            wcode = coder(w).T
             self.model.append(tops.PlainLinear(context, wcode, bcode))
-            if i < len(l)-1:
-                self.model.append(tops.Poly(context, pcode, degrees))
+            if i < l-1:
+                p = modelparm[f"nnet.poly{i}.coefficients"].numpy()
+                pcode = coder(p)
+                self.model.append(tops.Poly(context, keygen, pcode, degrees))
 
     def eval(self,x):
         """
         Inputs:
             x: encrypted inputs for single sample
-        Returns: encrypted dot product """
-        for layer in model:
+        Returns: NN model acting on x
+         """
+        for layer in self.model:
             x = layer(x)
         return x
-#%%
-modely = most_recent_model(path/"nn_poly12_mortality")
-
-#%%
-dict = torch.load(modely)
-
-#%%
-for k in dict["model_state_dict"].keys():
-    print(k)
-
-#%%
-dict.keys()
 
 
-#%%
+#PYseal scratch. experiments leave this change dir out. 
+import streamlit as st
+import seal 
+import numpy as np
+import pickle
+from seal import ChooserEvaluator, \
+    Ciphertext, \
+    Decryptor, \
+    Encryptor, \
+    EncryptionParameters, \
+    Evaluator, \
+    IntegerEncoder, \
+    FractionalEncoder, \
+    KeyGenerator, \
+    MemoryPoolHandle, \
+    Plaintext, \
+    SEALContext, \
+    EvaluationKeys, \
+    GaloisKeys, \
+    PolyCRTBuilder, \
+    ChooserEncoder, \
+    ChooserEvaluator, \
+    ChooserPoly
+
+pathmodels = Path(__file__).parent/"model_params"
+st.write(pathmodels)
+modely = pathmodels/"nn_poly12_mortality"
+st.write("Path to model:", modely)
+pathdata = Path(__file__).parent/"data"/"mortality_risk"/"train_dict.pkl"
+with open(pathdata,"rb") as f:
+    data = pickle.load(f)["test"]
+live = data.iloc[5].drop("expire")
+die = data.iloc[35].drop("expire")
+st.write(live)
+st.write(die)
+live = live.to_numpy()
+die = die.to_numpy()
+parms = EncryptionParameters()
+parms.set_poly_modulus("1x^8192 + 1")
+parms.set_coeff_modulus(seal.coeff_modulus_128(8192))
+parms.set_plain_modulus(1 << 10)
+context = SEALContext(parms)
+encoder = FractionalEncoder(context.plain_modulus(),context.poly_modulus(),32,32,3)
+keygen = KeyGenerator(context)
+public_key = keygen.public_key()
+secret_key = keygen.secret_key()
+encryptor = Encryptor(context, public_key)
+decryptor = Decryptor(context, secret_key)
+evaluator = Evaluator(context)
+
+vec_coder = tops.vec_encoder(encoder)
+vec_cipher = tops.vec_encryptor(public_key,context)
+live_code = vec_coder(live)
+die_code = vec_coder(die)
+live_cipher = vec_cipher(live_code)
+die_cipher = vec_cipher(die_code)
+
+batch = np.stack([live_cipher, die_cipher], axis=0)
+st.write("batch shape:",batch.shape)
+
+network = nn_svr(modely, encoder=encoder, context=context, keygen=keygen)
+out = network.eval(batch)
+st.write(out)
+st.write(tops.vec_noise_budget(decryptor,out).budget)

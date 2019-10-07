@@ -84,7 +84,6 @@ class vec_plain_multiply(object):
         if cipher.shape[-1] != plain.shape[0]:
             raise ValueError("The cipher shape and plain shape don't match.")
         for indices in np.ndindex(cipher.shape[:-1]):
-            print(indices)
             for i in range(plain.shape[0]):
                 self.evaluator.multiply_plain(cipher[indices][i],plain[i])
         return cipher
@@ -95,11 +94,11 @@ class vec_add_many(object):
         self.add = Evaluator(context).add_many
     def __call__(self, arr):
         shape = arr.shape[:-1]
-        size = np.prod(shape)
+        size = int(np.prod(shape))
         ciphers = np.array([Ciphertext() for i in range(size)])
         ciphers = ciphers.reshape(shape)
         for indices in np.ndindex(shape):
-            self.add(list(arr[indices]),ciphers[indices])
+            self.add(arr[indices].tolist(),ciphers[indices])
         return ciphers
 
 class vec_add_plain(object):
@@ -108,15 +107,16 @@ class vec_add_plain(object):
     matrix: matrix.shape = (batch,n,m). Should be an array of Ciphertext()
     """
     def __init__(self, context):
-        evaluator = Evaluator(context)
-        self.vec_add = np.vectorize(evaluator.add_plain)
+        self.add = Evaluator(context).add_plain
     def __call__(self, matrix, bias):
         sh = matrix.shape
         if sh[1:] != bias.shape:
             raise ValueError("Incompatible matrix and bias shapes. Make sure matrix tensor is 3D.")
         else:
+            shape = matrix[0].shape
             for i in range(sh[0]):
-                self.vec_add(matrix[i,...].flatten(),bias.flatten())
+                for indices in np.ndindex(shape): 
+                    self.add(matrix[i][indices],bias[indices])
         return matrix.reshape(matrix.shape)
 
 class cipher_dot_plain(object):
@@ -126,7 +126,8 @@ class cipher_dot_plain(object):
         self.add = vec_add_many(context)
     def __call__(self,cipher, plain):
         m = self.multiply(cipher, plain)
-        return self.add(m)
+        out = self.add(m)
+        return out
 
 class ciphermatrixprod():
     """Matrix multiplication which allows for batching in 0th dim of first input."""
@@ -137,14 +138,13 @@ class ciphermatrixprod():
         d = y.shape[-1]
         if x.shape[-1] != y.shape[0]:
             raise ValueError("Mismatch of shapes")
-        out = None
         for k in range(b):
-            copies = [dc(x[k,...]) for i in range(d)]
-            arr = np.array([self.dot(copies[j],y[:,j]).squeeze() for j in range(d)]).T
-            if out == None:
+            copies = [dc(x[np.newaxis,k,...]) for i in range(d)]
+            arr = np.array([self.dot(copies[j],y[:,j]) for j in range(d)]).T
+            if k == 0:
                 out = arr
             else: 
-                out = np.stack([out, arr], axis=0)
+                out = np.concatenate([out, arr], axis=0)
         return np.array(out)
 
 class PlainLinear(object):
@@ -166,9 +166,9 @@ class PlainLinear(object):
 
 class Pow(object):
     """Raises x to the power n for n >= 1."""
-    def __init__(self, context):
-        evaluator = Evaluator(context)
-        self.mul = np.vectorize(evaluator.multiply)
+    def __init__(self, context, keygen):
+        self.mult = Evaluator(context).multiply
+        self.relinear = vec_relinearize(context, keygen)
     def __call__(self, x, n):
         """For polynomials with multiple degrees, we need to not affect x. 
         This is in reference to mult happening in place or passed to a new
@@ -179,12 +179,33 @@ class Pow(object):
         if n == 1:
             return dc(x)
         #xc copy x, mc copy for multiplying
-        xc = dc(x.flatten())
-        mc = dc(x.flatten())
+        xc = dc(x)
+        mc = dc(x)
+        shape = x.shape
         for i in range(n-1):
-            self.mul(xc, mc)
-        return (xc.reshape(x.shape))
+            for indices in np.ndindex(shape):
+                self.mult(xc[indices], mc[indices])
+                self.relinear.relinearize(xc)
+                #st.write(self.relinear.size(xc))
+        return xc
 
+class vec_relinearize():
+    def __init__(self, context, keygen):
+        self.relinear = Evaluator(context).relinearize
+        self.ev_keys = EvaluationKeys()
+        keygen.generate_evaluation_keys(30, self.ev_keys)
+    def relinearize(self,x):
+        shape = x.shape
+        for indices in np.ndindex(shape):
+            self.relinear(x[indices], self.ev_keys)
+        
+
+    def size(self,x):
+        shape = x.shape
+        sizes = np.empty(shape)
+        for indices in np.ndindex(shape):
+            sizes[indices] = x[indices].size()
+        return sizes
 
 class Poly(object):
     """Compute poly(x) where x is a polynomial with no constant term, and 
@@ -192,8 +213,8 @@ class Poly(object):
     a polynomial with unknown coefficients. In __call__, coeff are specified.
     This is for nn where all the layers have the same type of polynomial 
     activation functions with trainable coefficients."""
-    def __init__(self, context, coeff, degrees):
-        self.pow = Pow(context)
+    def __init__(self, context, keygen, coeff, degrees):
+        self.pow = Pow(context, keygen)
         self.mul_plain = vec_plain_multiply(context)
         self.add_many = vec_add_many(context)
         self.degrees = degrees
@@ -276,3 +297,11 @@ def scratchwork():
     print(OUT)
     print(vec_noise_budget(decryptor,out).budget)
 
+
+
+#%%
+import numpy as np 
+arr1 = np.array([[i+1 for i in range(24)]]).reshape((6,4))
+arr1[np.newaxis,0].shape
+
+#%%
