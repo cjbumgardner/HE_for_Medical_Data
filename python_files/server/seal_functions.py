@@ -15,6 +15,8 @@ import tensor_ops as tops
 import os
 from pathlib import Path
 import yaml
+import streamlit as st
+import numpy as np
 
 
 def most_recent_model(dir_to_models):
@@ -46,26 +48,29 @@ class linear_reg_svr(object):
         try:
             latest_path = most_recent_model(log_reg_model_dir)
             modeldict = torch.load(latest_path)
-            weight_v = modeldict["logistic_reg.weight_v"].numpy()
-            weight_g = modeldict["logistic_reg.weight_g"].numpy()
-            bias = modeldict["logistic_reg.bias"].numpy()
+            weight_v = modeldict["out.weight_v"].numpy()
+            weight_g = modeldict["out.weight_g"].numpy()
+            bias = modeldict["out.bias"].numpy()
         except Exception as e:
             raise ValueError(f"There was a problem with loading log_reg_model_path: {e}.")
         weight = weight_v*weight_g
-        self.encoder = encoder
-        self.context = context
         try:
-            self.enc_weight = tops.vec_encoder(encoder)(weight)
-            self.enc_bias = tops.vec_encoder(bias)
+            vencoder = tops.vec_encoder(encoder)
+            self.enc_weight = vencoder(weight).squeeze()
+            self.enc_bias = vencoder(bias)
         except Exception as e: 
             raise ValueError(f"There was a problem encoding {e}")
+        self.dot = tops.cipher_dot_plain(context)
+        self.add = tops.vec_add_plain(context)
     def eval(self,x):
         """
         Inputs:
             x: encrypted inputs for single sample
         Returns: encrypted dot product """
-
-        y = tops.cipher_dot_plain(self.context)(x,self.enc_weight_v)
+        y = self.dot(x, self.enc_weight)
+        y = np.expand_dims(y,axis=-1)
+        print(y.shape,self.enc_bias.shape)
+        y = self.add(y, self.enc_bias)
         
         return y
 
@@ -131,66 +136,67 @@ class nn_svr(object):
 
 
 #PYseal scratch. experiments leave this change dir out. 
-import streamlit as st
-import seal 
-import numpy as np
-import pickle
-from seal import ChooserEvaluator, \
-    Ciphertext, \
-    Decryptor, \
-    Encryptor, \
-    EncryptionParameters, \
-    Evaluator, \
-    IntegerEncoder, \
-    FractionalEncoder, \
-    KeyGenerator, \
-    MemoryPoolHandle, \
-    Plaintext, \
-    SEALContext, \
-    EvaluationKeys, \
-    GaloisKeys, \
-    PolyCRTBuilder, \
-    ChooserEncoder, \
-    ChooserEvaluator, \
-    ChooserPoly
+def experients():
+    import streamlit as st
+    import seal 
+    import numpy as np
+    import pickle
+    from seal import ChooserEvaluator, \
+        Ciphertext, \
+        Decryptor, \
+        Encryptor, \
+        EncryptionParameters, \
+        Evaluator, \
+        IntegerEncoder, \
+        FractionalEncoder, \
+        KeyGenerator, \
+        MemoryPoolHandle, \
+        Plaintext, \
+        SEALContext, \
+        EvaluationKeys, \
+        GaloisKeys, \
+        PolyCRTBuilder, \
+        ChooserEncoder, \
+        ChooserEvaluator, \
+        ChooserPoly
 
-pathmodels = Path(__file__).parent/"model_params"
-st.write(pathmodels)
-modely = pathmodels/"nn_poly12_mortality"
-st.write("Path to model:", modely)
-pathdata = Path(__file__).parent/"data"/"mortality_risk"/"train_dict.pkl"
-with open(pathdata,"rb") as f:
-    data = pickle.load(f)["test"]
-live = data.iloc[5].drop("expire")
-die = data.iloc[35].drop("expire")
-st.write(live)
-st.write(die)
-live = live.to_numpy()
-die = die.to_numpy()
-parms = EncryptionParameters()
-parms.set_poly_modulus("1x^8192 + 1")
-parms.set_coeff_modulus(seal.coeff_modulus_128(8192))
-parms.set_plain_modulus(1 << 10)
-context = SEALContext(parms)
-encoder = FractionalEncoder(context.plain_modulus(),context.poly_modulus(),32,32,3)
-keygen = KeyGenerator(context)
-public_key = keygen.public_key()
-secret_key = keygen.secret_key()
-encryptor = Encryptor(context, public_key)
-decryptor = Decryptor(context, secret_key)
-evaluator = Evaluator(context)
+    pathmodels = Path(__file__).parent/"model_params"
+    st.write(pathmodels)
+    modely = pathmodels/"nn_poly13small_mortality"
+    st.write("Path to model:", modely)
+    pathdata = Path(__file__).parent/"data"/"mortality_risk"/"train_dict.pkl"
+    with open(pathdata,"rb") as f:
+        data = pickle.load(f)["test"]
+    live = data.iloc[5].drop("expire")
+    die = data.iloc[35].drop("expire")
+    st.write(live)
+    st.write(die)
+    live = live.to_numpy()
+    die = die.to_numpy()
+    parms = EncryptionParameters()
+    parms.set_poly_modulus("1x^8192 + 1")
+    parms.set_coeff_modulus(seal.coeff_modulus_128(4096))
+    parms.set_plain_modulus(1 << 10)
+    context = SEALContext(parms)
+    encoder = FractionalEncoder(context.plain_modulus(),context.poly_modulus(),32,32,3)
+    keygen = KeyGenerator(context)
+    public_key = keygen.public_key()
+    secret_key = keygen.secret_key()
+    encryptor = Encryptor(context, public_key)
+    decryptor = Decryptor(context, secret_key)
+    evaluator = Evaluator(context)
 
-vec_coder = tops.vec_encoder(encoder)
-vec_cipher = tops.vec_encryptor(public_key,context)
-live_code = vec_coder(live)
-die_code = vec_coder(die)
-live_cipher = vec_cipher(live_code)
-die_cipher = vec_cipher(die_code)
+    vec_coder = tops.vec_encoder(encoder)
+    vec_cipher = tops.vec_encryptor(public_key,context)
+    live_code = vec_coder(live)
+    die_code = vec_coder(die)
+    live_cipher = vec_cipher(live_code)
+    die_cipher = vec_cipher(die_code)
 
-batch = np.stack([live_cipher, die_cipher], axis=0)
-st.write("batch shape:",batch.shape)
+    batch = np.stack([live_cipher, die_cipher], axis=0)
+    st.write("batch shape:",batch.shape)
 
-network = nn_svr(modely, encoder=encoder, context=context, keygen=keygen)
-out = network.eval(batch)
-st.write(out)
-st.write(tops.vec_noise_budget(decryptor,out).budget)
+    network = nn_svr(modely, encoder=encoder, context=context, keygen=keygen)
+    out = network.eval(batch)
+    st.write(out)
+    st.write(tops.vec_noise_budget(decryptor,out).budget)

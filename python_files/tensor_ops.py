@@ -33,9 +33,13 @@ class vec_encoder(object):
     def __init__(self, encoder):
         """encoder: instantiated pyseal encoder object"""
         self.vec_enco = np.vectorize(encoder.encode)
+        #self.encode = encoder.encode
     def __call__(self,arr):
         """arr: ndarray of proper int/float type relative to encoder"""
-        empty = np.empty(arr.shape)
+        empty = np.empty(arr.size)
+        #for indices in np.ndindex(arr.shape):
+        #    print(arr[indices])
+        #    empty[indices] = self.encode(arr[indices])
         empty = self.vec_enco(arr)
         return empty
 
@@ -193,7 +197,7 @@ class vec_relinearize():
     def __init__(self, context, keygen):
         self.relinear = Evaluator(context).relinearize
         self.ev_keys = EvaluationKeys()
-        keygen.generate_evaluation_keys(30, self.ev_keys)
+        keygen.generate_evaluation_keys(16, self.ev_keys)
     def relinearize(self,x):
         shape = x.shape
         for indices in np.ndindex(shape):
