@@ -8,8 +8,10 @@ import numpy as np
 import pandas as pd
 import pickle 
 from pathlib import Path
+import time
 
 datapath = Path(__file__).parent/"server"/"data"/"mortality_risk"/"smallerfeatures.pkl"
+
 with open(datapath, "rb") as f:
     datadf = pickle.load(f)
 
@@ -33,8 +35,8 @@ elif int(patientid) not in datadf.index:
 else:
     patientdata = datadf.loc[int(patientid)]
     st.write(patientdata)
-    patientdata = patientdata.to_numpy()
-    patientdata = np.expand_dims(patientdata,axis=0)
+    patientdatanp = patientdata.to_numpy()
+    patientdatanp = np.expand_dims(patientdata,axis=0)
 levels = ["select", 128, 192]
 security = st.selectbox("Select the security level. Higher is \
     more secure but will slow operations on large data.",
@@ -44,12 +46,14 @@ security = st.selectbox("Select the security level. Higher is \
 if security != "select" and test != "select":
     st.subheader("Preprocessing and setting encryption parameters...")
     encryption_handler = client.encryption_handler()
-    data_processer = client.request_receive(patientdata,test) 
+    data_processer = client.request_receive(patientdatanp,test) 
     data_processed = data_processer.process_data
     st.subheader("Encoding and encrypting...")
     encryption_handler.set_encoder()
+   
     encrypted_data = encryption_handler.encode_encrypt(data_processed)
     st.write(encrypted_data)
+    start = time.time()
 #this expects 2D array. Change if you want to batch.
     
     st.subheader("Sending to server...")
@@ -67,6 +71,11 @@ if security != "select" and test != "select":
     st.write(encr_out)
     st.subheader("Decrypting and decoding...")
     dec_out = encryption_handler.decrypt_decode(encr_out)
-    st.write("Transforming data for final output...")
+    st.write("Transforming data for final output.")
     out = data_processer.post_process(dec_out)
+    stop = time.time()
+    st.write(f"Elapsed time for prediction: {round(stop-start,4)} seconds")
+    ser = pd.Series(out.squeeze(),index= ["Mortality_Risk"])
+    out = ser.append(patientdata).rename(patientdata.name)
     st.write(out)
+    print(patientdata.name)

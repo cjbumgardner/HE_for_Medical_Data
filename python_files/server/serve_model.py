@@ -11,9 +11,10 @@ the encrypted predictions back to the client.
 
 import server.seal_functions as sf
 from pathlib import Path, PurePath
+import os
 import streamlit as st
 
-MODELPARMS = Path(__file__).resolve().parent.joinpath("model_params")
+MODELPARMS = Path(os.path.realpath(__file__)).parent.joinpath("model_params")
 
 MODELS = {"Mortality Risk":
             {"path":"log_reg_mortality",

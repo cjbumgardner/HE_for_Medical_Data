@@ -1,0 +1,10 @@
+activation: relu
+batch_size: 30
+degrees: null
+layers:
+- 4
+- 2
+- 1
+learning_rate: 0.001
+modeltype: nn
+num_epochs: 100

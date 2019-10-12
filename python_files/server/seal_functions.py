@@ -69,7 +69,6 @@ class linear_reg_svr(object):
         Returns: encrypted dot product """
         y = self.dot(x, self.enc_weight)
         y = np.expand_dims(y,axis=-1)
-        print(y.shape,self.enc_bias.shape)
         y = self.add(y, self.enc_bias)
         
         return y
@@ -160,11 +159,11 @@ def experients():
         ChooserEvaluator, \
         ChooserPoly
 
-    pathmodels = Path(__file__).parent/"model_params"
+    pathmodels = Path(os.path.realpath(__file__)).parent/"model_params"
     st.write(pathmodels)
     modely = pathmodels/"nn_poly13small_mortality"
     st.write("Path to model:", modely)
-    pathdata = Path(__file__).parent/"data"/"mortality_risk"/"train_dict.pkl"
+    pathdata = Path(os.path.realpath(__file__)).parent/"data"/"mortality_risk"/"train_dict.pkl"
     with open(pathdata,"rb") as f:
         data = pickle.load(f)["test"]
     live = data.iloc[5].drop("expire")

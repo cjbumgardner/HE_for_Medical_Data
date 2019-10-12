@@ -23,6 +23,7 @@ import tensor_ops as tops
 import client.postprocess as post
 import client.preprocess as prep
 
+
 class encryption_handler(object):
     """
     Methods:
@@ -41,6 +42,7 @@ class encryption_handler(object):
                 security_level = 128,  #128 or 192 for now
                 poly_modulus_pwr2 = 12, # 11 through 15
                 coeff_modulus = None,
+                plain_modulus = 8,
                 batch = False,
                 ):
         """
@@ -66,7 +68,7 @@ class encryption_handler(object):
                 self.params.set_coeff_modulus(seal.coeff_modulus_128(power))
             if security_level == 192:
                 self.params.set_coeff_modulus(seal.coeff_modulus_192(power))
-        self.params.set_plain_modulus(1<<8)
+        self.params.set_plain_modulus(1<<plain_modulus)
         try: 
             self.cont = SEALContext(self.params)
         except Exception as e:
