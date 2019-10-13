@@ -241,14 +241,21 @@ class vec_noise_budget(object):
     def budget(self):
         return self.__vec_budget.reshape(self.shape)
     
-def print_parameters(context):
+def print_parameters(context, empty=None):
     print("/ Encryption parameters:")
     print("| poly_modulus: " + context.poly_modulus().to_string())
     print("| coeff_modulus_size: " + (str)(context.total_coeff_modulus().significant_bit_count()) + " bits")
     print("| plain_modulus: " + (str)(context.plain_modulus().value()))
     print("| noise_standard_deviation: " + (str)(context.noise_standard_deviation()))
-    st.write("/ Encryption parameters:")
-    st.write("| poly_modulus: " + context.poly_modulus().to_string())
-    st.write("| coeff_modulus_size: " + (str)(context.total_coeff_modulus().significant_bit_count()) + " bits")
-    st.write("| plain_modulus: " + (str)(context.plain_modulus().value()))
-    st.write("| noise_standard_deviation: " + (str)(context.noise_standard_deviation()))
+    if empty == None:
+        st.markdown("/ Encryption parameters:")
+        st.markdown("| poly_modulus: " + context.poly_modulus().to_string())
+        st.markdown("| coeff_modulus_size: " + (str)(context.total_coeff_modulus().significant_bit_count()) + " bits")
+        st.markdown("| plain_modulus: " + (str)(context.plain_modulus().value()))
+        st.markdown("| noise_standard_deviation: " + (str)(context.noise_standard_deviation()))
+    else:
+        empty.markdown(f"/ Encryption parameters:  <br/> \
+        | poly_modulus: {context.poly_modulus().to_string()} <br/>  \
+        | coeff_modulus_size: {(str)(context.total_coeff_modulus().significant_bit_count())} bits <br/> \
+        | plain_modulus: {(str)(context.plain_modulus().value())}<br/> \
+        | noise_standard_deviation: {(str)(context.noise_standard_deviation())}", unsafe_allow_html=True)

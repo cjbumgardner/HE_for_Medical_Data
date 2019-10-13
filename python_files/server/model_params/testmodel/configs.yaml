@@ -7,4 +7,4 @@ layers:
 - 1
 learning_rate: 0.001
 modeltype: nn
-num_epochs: 100
+num_epochs: 10

@@ -172,9 +172,9 @@ def convert_mortality_data(train_dict, test=False):
     if "test_x" in train_dict.keys():
         if test == False:
             train_dict["train_x"] = torch.Tensor(train_dict["train_x"].values)
-            train_dict["train_y"] = torch.Tensor(train_dict["train_y"].values)
+            train_dict["train_y"] = torch.Tensor(train_dict["train_y"].values).unsqueeze_(1)
         train_dict["test_x"] = torch.Tensor(train_dict["test_x"].values)
-        train_dict["test_y"] = torch.Tensor(train_dict["test_y"].values)
+        train_dict["test_y"] = torch.Tensor(train_dict["test_y"].values).unsqueeze_(1)
         
     else:
         if test == False:

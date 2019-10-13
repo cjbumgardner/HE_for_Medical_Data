@@ -42,7 +42,7 @@ class encryption_handler(object):
                 security_level = 128,  #128 or 192 for now
                 poly_modulus_pwr2 = 12, # 11 through 15
                 coeff_modulus = None,
-                plain_modulus = 8,
+                plain_modulus = 2**8,
                 batch = False,
                 ):
         """
@@ -61,24 +61,38 @@ class encryption_handler(object):
         power = 2 ** poly_modulus_pwr2
         self.params.set_poly_modulus(f"1x^{power} + 1")
         if coeff_modulus != None:
-            self.params.set_coeff_modulus(coeff_modulus)
             st.write("Security level is ignored since coeff_modulus was set.")
+            self.params.set_coeff_modulus(coeff_modulus)
         else:
             if security_level == 128:
                 self.params.set_coeff_modulus(seal.coeff_modulus_128(power))
             if security_level == 192:
                 self.params.set_coeff_modulus(seal.coeff_modulus_192(power))
-        self.params.set_plain_modulus(1<<plain_modulus)
+        try:
+            self.params.set_plain_modulus(plain_modulus)
+        except:
+            raise ValueError("There was a problem setting the plain modulus.")
         try: 
-            self.cont = SEALContext(self.params)
+            self.__cont = SEALContext(self.params)
         except Exception as e:
             raise ValueError("There was a problem with your parameters.")
             st.write(f"There was a problem with your parameters: {e}")
+    
+        self.__keygen = KeyGenerator(self.__cont)
+        self.__secretkey = self.__keygen.secret_key()
+        self.__publickey = self.__keygen.public_key()
 
-        tops.print_parameters(self.context)
-        keygen = KeyGenerator(self.context)
-        self.secretkey = keygen.secret_key()
-        self.publickey = keygen.public_key()
+    @property
+    def context(self):
+        return self.__cont
+
+    @property
+    def encoder(self):
+        return self.__enco
+    
+    @property
+    def keygen(self):
+        return self.__keygen
 
     def set_encoder(self,
                     fractional_encoder = True,
@@ -86,42 +100,38 @@ class encryption_handler(object):
                     decimal_sign_digits = 32,
                     base = 3,
                     ):
-        if fractional_encoder == True:
-            self.enco = FractionalEncoder(self.cont.plain_modulus(),
-                                        self.cont.poly_modulus(), 
+        if fractional_encoder:
+            self.__enco = FractionalEncoder(self.__cont.plain_modulus(),
+                                        self.__cont.poly_modulus(), 
                                         whole_sign_digits,
                                         decimal_sign_digits,
                                         base,
                                         )
         else:
-            self.enco = IntegerEncoder(self.cont.plain_modulus(),
+            self.__enco = IntegerEncoder(self.__cont.plain_modulus(),
                                         base,
                                         )
-    @property
-    def context(self):
-        return self.cont
-
-    @property
-    def encoder(self):
-        return self.enco
-
+    
     def encode_encrypt(self, x):
         """
         Encodes then encrypts a list x according to scheme.
         x: list of samples with features
         """
         encoded = tops.vec_encoder(self.encoder)(x)
-        return tops.vec_encryptor(self.publickey,self.context)(encoded)
+        return tops.vec_encryptor(self.__publickey,self.__cont)(encoded)
     
     def decrypt_decode(self, x):
         """
         Decrypts a list that was encrypted with self.publickey.
         x: list of encrypted values.
         """
-        out = tops.vec_decryptor(self.secretkey, self.context)(x)
+        out = tops.vec_decryptor(self.__secretkey, self.__cont)(x)
         return tops.vec_decoder(self.encoder)(out)                
                                         
-                                        
+    def vec_noise_budget(self, arr):
+        decryptor = Decryptor(self.context, self.__secretkey) 
+        return tops.vec_noise_budget(decryptor, arr)
+
 
 class request_receive(object):
     def __init__(self, data_path, model):

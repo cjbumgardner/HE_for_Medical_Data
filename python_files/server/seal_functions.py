@@ -25,6 +25,7 @@ def most_recent_model(dir_to_models):
     list_of_paths = dir_to_models.glob("*")
     paths = sorted(list_of_paths, key=lambda p: p.stat().st_ctime)
     paths.reverse()
+    latest_path = None
     for path in paths:
         if path.name[0:5] == "model":
             latest_path = path
@@ -85,16 +86,16 @@ class nn_svr(object):
         coder = tops.vec_encoder(encoder)
         if isinstance(nn_model_path, str):
             nn_model_path = Path(nn_model_path)
-        modelstrupath = nn_model_path/"configs"
+        #get latest model
         recent = most_recent_model(nn_model_path)
         modelparmpath = nn_model_path/recent
         #load model geometry
-        cfgs = nn_model_path.joinpath("configs.yaml")
+        cfgs = nn_model_path/"configs.yaml"
         try:
             with open(cfgs) as f:
                 configs = yaml.load(f,Loader = yaml.FullLoader)
         except FileNotFoundError as e:
-            raise ValueError("There was a problem finding config.yml.")
+            raise ValueError("There was a problem finding configs.yaml.")
         except Exception as e:
             raise ValueError(f"There was an exception: {e}")
         #Get model parameters
@@ -133,9 +134,9 @@ class nn_svr(object):
             x = layer(x)
         return x
 
-
+def crap():
 #PYseal scratch. experiments leave this change dir out. 
-def experients():
+
     import streamlit as st
     import seal 
     import numpy as np
@@ -172,11 +173,15 @@ def experients():
     st.write(die)
     live = live.to_numpy()
     die = die.to_numpy()
+    #%%
     parms = EncryptionParameters()
-    parms.set_poly_modulus("1x^8192 + 1")
+    parms.set_poly_modulus("1x^4096 + 1")
     parms.set_coeff_modulus(seal.coeff_modulus_128(4096))
-    parms.set_plain_modulus(1 << 10)
+    parms.set_plain_modulus(1 << 20)
     context = SEALContext(parms)
+    print(context.plain_modulus().value())
+    #%%
+
     encoder = FractionalEncoder(context.plain_modulus(),context.poly_modulus(),32,32,3)
     keygen = KeyGenerator(context)
     public_key = keygen.public_key()
