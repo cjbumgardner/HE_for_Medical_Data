@@ -193,7 +193,7 @@ class vec_relinearize():
     def __init__(self, context, keygen):
         self.relinear = Evaluator(context).relinearize
         self.ev_keys = EvaluationKeys()
-        keygen.generate_evaluation_keys(16, self.ev_keys)
+        keygen.generate_evaluation_keys(10, self.ev_keys)
     def relinearize(self,x):
         shape = x.shape
         for indices in np.ndindex(shape):
@@ -254,8 +254,8 @@ def print_parameters(context, empty=None):
         st.markdown("| plain_modulus: " + (str)(context.plain_modulus().value()))
         st.markdown("| noise_standard_deviation: " + (str)(context.noise_standard_deviation()))
     else:
-        empty.markdown(f"/ Encryption parameters:  <br/> \
+        empty.markdown(f" <div style='background-color:rgba(150,220,150,0.4)'>/ Encryption parameters:  <br/> \
         | poly_modulus: {context.poly_modulus().to_string()} <br/>  \
         | coeff_modulus_size: {(str)(context.total_coeff_modulus().significant_bit_count())} bits <br/> \
         | plain_modulus: {(str)(context.plain_modulus().value())}<br/> \
-        | noise_standard_deviation: {(str)(context.noise_standard_deviation())}", unsafe_allow_html=True)
+        | noise_standard_deviation: {(str)(context.noise_standard_deviation())}</div>", unsafe_allow_html=True)

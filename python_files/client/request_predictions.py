@@ -73,26 +73,39 @@ class encryption_handler(object):
         except:
             raise ValueError("There was a problem setting the plain modulus.")
         try: 
-            self.__cont = SEALContext(self.params)
+            self._cont = SEALContext(self.params)
         except Exception as e:
             raise ValueError("There was a problem with your parameters.")
             st.write(f"There was a problem with your parameters: {e}")
-    
-        self.__keygen = KeyGenerator(self.__cont)
-        self.__secretkey = self.__keygen.secret_key()
-        self.__publickey = self.__keygen.public_key()
+
+        _keygen = KeyGenerator(self._cont)
+        self._secretkey = _keygen.secret_key()
+        self._publickey = _keygen.public_key()
+
+    @property
+    def secretkey(self):
+        return self._secretkey
+
+    @property
+    def publickey(self):
+        return self._publickey 
 
     @property
     def context(self):
-        return self.__cont
+        return self._cont
+
+    
+class encryption_runner(encryption_handler):
+    def __init__(self, encryptionhandlerinstance):
+        self.__dict__ = encryptionhandlerinstance.__dict__
+        self.__keygen = KeyGenerator(self._cont)
+    @property
+    def keygen(self):
+        return self.__keygen
 
     @property
     def encoder(self):
         return self.__enco
-    
-    @property
-    def keygen(self):
-        return self.__keygen
 
     def set_encoder(self,
                     fractional_encoder = True,
@@ -101,14 +114,14 @@ class encryption_handler(object):
                     base = 3,
                     ):
         if fractional_encoder:
-            self.__enco = FractionalEncoder(self.__cont.plain_modulus(),
-                                        self.__cont.poly_modulus(), 
+            self.__enco = FractionalEncoder(self._cont.plain_modulus(),
+                                        self._cont.poly_modulus(), 
                                         whole_sign_digits,
                                         decimal_sign_digits,
                                         base,
                                         )
         else:
-            self.__enco = IntegerEncoder(self.__cont.plain_modulus(),
+            self.__enco = IntegerEncoder(self._cont.plain_modulus(),
                                         base,
                                         )
     
@@ -118,20 +131,19 @@ class encryption_handler(object):
         x: list of samples with features
         """
         encoded = tops.vec_encoder(self.encoder)(x)
-        return tops.vec_encryptor(self.__publickey,self.__cont)(encoded)
+        return tops.vec_encryptor(self._publickey,self._cont)(encoded)
     
     def decrypt_decode(self, x):
         """
         Decrypts a list that was encrypted with self.publickey.
         x: list of encrypted values.
         """
-        out = tops.vec_decryptor(self.__secretkey, self.__cont)(x)
+        out = tops.vec_decryptor(self._secretkey, self._cont)(x)
         return tops.vec_decoder(self.encoder)(out)                
                                         
     def vec_noise_budget(self, arr):
-        decryptor = Decryptor(self.context, self.__secretkey) 
+        decryptor = Decryptor(self._cont, self._secretkey) 
         return tops.vec_noise_budget(decryptor, arr)
-
 
 class request_receive(object):
     def __init__(self, data_path, model):
@@ -150,3 +162,5 @@ class request_receive(object):
     def post_process(self, predictions):
         return self.post_proc(predictions)
     
+
+
