@@ -32,6 +32,7 @@ from server.train_models.nn_train import fully_conn
 from client.request_predictions import encryption_handler, encryption_runner
 import tensor_ops as tops
 import numpy as np 
+import pandas as pd
 
 def sigmoid(linear_pred):
     e = np.exp(-linear_pred)
@@ -55,6 +56,16 @@ def find_file_type(dir_to_files, filename):
             latest_path = path
             break
     return latest_path
+
+def showmodelweights(modeldir):
+    modeldict = most_recent_model(modeldir)
+    modeldict = modeldir/modeldict
+    weightdict = torch.load(modeldict)["model_state_dict"]
+    if st.checkbox("Show model weights"):
+        for k,v in weightdict.items():
+            st.markdown(k)
+            st.dataframe(v.detach().numpy())
+
 
 
 def getencodedmodel(modeldir, encoder, context, keygen):
@@ -152,6 +163,7 @@ class EncryptedInference(Streamlithelp):
         if self.modeldir!="Select" and not isinstance(self.handler, type(None)):
             self.model = getencodedmodel(self.absolutemodeldir, self.handler.encoder, self.handler._cont, self.handler.keygen)
             self.doneencodingmodel.success(f"Model {self.modeldir} is encoded.")
+            showmodelweights(self.absolutemodeldir)
             
         try:
             _encrypteddata = find_file_type(self.absolutemodeldir,"cache_data.pkl")
@@ -356,9 +368,7 @@ class EncryptedInference(Streamlithelp):
         stop = time.time()
         st.success(f"Finished running encoded model with average of \
             {round((stop-start)/index,4)} seconds/sample!")
-        st.write(f"Keygen object address: {self.handler.keygen}")
         noise = self.handler.vec_noise_budget(encoutput)
-        st.write(f"The noise budget for the output array is: {noise.budget}")
         if noise.min == 0:
             st.warning("The computations ran out of noise budget.\
                 Other internal features will be added in the future to help. For now, adjust the \
@@ -366,7 +376,6 @@ class EncryptedInference(Streamlithelp):
         with st.spinner("Now decrypting the data and finishing with sigmoid..."):
             unencoutput = self.handler.decrypt_decode(encoutput)
             unencoutput = sigmoid(unencoutput)
-            st.write(unencoutput)
 
         testmodel = TestNoStreamlit(features, self.absolutemodeldir)
         start = time.time()
@@ -374,18 +383,9 @@ class EncryptedInference(Streamlithelp):
             regoutput = testmodel.eval(plain)
         stop = time.time()
         st.success(f"Finished running encoded model with average of {round((stop-start)/index,4)} seconds/sample!")
-        st.write(regoutput)
+        outstacked = np.concatenate([noise.budget,unencoutput, regoutput], axis=1)
 
-
-    def runinferencetorch(self):
-        testmodel = TestNoStreamlit(self.features, self.absolutemodeldir)
-        if st.checkbox("Run inference with unencoded model"):
-            start = time.time()
-            with st.spinner("Running pytorch model..."):
-                self.regoutput = testmodel.eval(self.npdata_x[self.lower:self.upper])
-            stop = time.time()
-            st.success(f"Finished running encoded model with average of {round((stop-start)/(self.upper-self.lower),4)} seconds/sample!")
-            st.write(self.regoutput)
+        st.write(pd.DataFrame(outstacked, columns=["Noise budget left", "Encrypted Model", "Unencrypted Model"]))
 
 
 class TestNoStreamlit():

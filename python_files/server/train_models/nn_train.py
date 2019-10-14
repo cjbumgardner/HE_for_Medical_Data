@@ -66,8 +66,9 @@ class fully_conn(nn.Module):
         network = [("weightedLinear0", weight_norm(nn.Linear(input_size,layers[0])))]
         numlayer = len(layers)
         if activation == "relu":
-            Relu = ("relu0", ReLU())
-            network.append(Relu)
+            if numlayer > 1:
+                Relu = ("relu0", ReLU())
+                network.append(Relu)
             for i in range(numlayer-1):
                 l = (f"weightedLinear{i+1}", weight_norm(nn.Linear(layers[i],layers[i+1])))
                 if i < numlayer-2:
@@ -76,8 +77,9 @@ class fully_conn(nn.Module):
                 else:
                     network.append(l)
         if activation == "poly":
-            Poly = (f"poly0", poly(degrees))
-            network.append(Poly)
+            if numlayer > 1:
+                Poly = (f"poly0", poly(degrees))
+                network.append(Poly)
             p = len(degrees)
             for i in range(numlayer-1):
                 l = (f"weightedLinear{i+1}",weight_norm(nn.Linear(layers[i],layers[i+1])))

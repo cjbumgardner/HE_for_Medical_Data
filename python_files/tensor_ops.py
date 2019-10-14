@@ -229,8 +229,9 @@ class vec_noise_budget(object):
     """For inspecting various measures of the noise budget for elements of an array."""
     def __init__(self,decryptor,arr):
         self.shape = arr.shape
-        farr = arr.flatten()
-        self.__vec_budget = np.vectorize(decryptor.invariant_noise_budget)(farr)
+        self.__vec_budget = np.empty(self.shape)
+        for indices in np.ndindex(self.shape):
+            self.__vec_budget[indices] = decryptor.invariant_noise_budget(arr[indices])
     @property
     def mean(self):
         return np.mean(self.__vec_budget)
@@ -239,7 +240,7 @@ class vec_noise_budget(object):
         return np.min(self.__vec_budget)
     @property
     def budget(self):
-        return self.__vec_budget.reshape(self.shape)
+        return self.__vec_budget
     
 def print_parameters(context, empty=None):
     print("/ Encryption parameters:")
