@@ -1,0 +1,4 @@
+#functions to call in preprocess.py and postprocess.py
+- log_reg_mortality: 
+        preprocess: None
+        postprocess: None

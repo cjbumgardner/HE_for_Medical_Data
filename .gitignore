@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -109,3 +110,7 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+=======
+.vscode
+.DS_Store
+>>>>>>> dev-initial_build-201909

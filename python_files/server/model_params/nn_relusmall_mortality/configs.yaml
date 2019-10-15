@@ -1,0 +1,8 @@
+#Config file for nn with relu activations
+modeltype: "nn"
+learning_rate : 0.0001
+batch_size: 30
+num_epochs: 100
+activation: "relu"
+layers: [4,1]
+degrees: None
