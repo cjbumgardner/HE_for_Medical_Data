@@ -1,29 +1,13 @@
-<<<<<<< HEAD
-# Insight_Project_Framework
-Framework for machine learning projects at Insight Data Science.
-
-## Motivation for this project format:
-- **Insight_Project_Framework** : Put all source code for production within structured directory
-- **tests** : Put all source code for testing in an easy to find location
-- **configs** : Enable modification of all preset variables within single directory (consisting of one or many config files for separate tasks)
-- **data** : Include example a small amount of data in the Github repository so tests can be run to validate installation
-- **build** : Include scripts that automate building of a standalone environment
-- **static** : Any images or content to include in the README or web framework if part of the pipeline
-=======
 # Decipher ML
 Utilizing Homomorphic Encryption for Secure ML Inference
 
 ## Homomorphic Encryption
 With the growing field of predictive analytics in the healthcare industry, there is a growing need to utilize ML models in a secure manner to protect healthcare records. Homomorphic encryption is an encryption that allows for arithmetic operations on ciphertexts that decrypts to the same arithmetic operations on the plaintexts. In other words, we can run ML inference on homomorphically encrypted data, and the output is decrypted to a value as if we simply ran inference on the raw data. A google slidedeck for this Insight project can be found [here](https://docs.google.com/presentation/d/15EZNeUMWxDNn39WEwgoHw3fQwY_7OZWdggyzbdaYs-I/edit?usp=sharing]).
->>>>>>> dev-initial_build-201909
 
 ## Setup
 Clone repository and update python path
 ```
-<<<<<<< HEAD
-repo_name=Insight_Project_Framework # URL of your new repository
-username=mrubash1 # Username for your personal github account
-git clone https://github.com/$username/$repo_name
+
 =======
 repo_name = HE_for_Medical_Data
 git clone https://github.com/cjbumgardner/$repo_name
