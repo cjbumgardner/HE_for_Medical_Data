@@ -22,6 +22,8 @@ import argparse
 from datetime import datetime
 from collections import OrderedDict
 
+serverdir = Path(os.path.realpath(__file__)).parent.parent
+he_for_medical_data = serverdir.parent.parent
 
 def generate_random_data(num_data_samp, data_dim):
     "Generate some random data for log reg."
@@ -192,9 +194,9 @@ def convert_mortality_data(train_dict, test=False):
 
 def main(modeldir = None, datadir = None, continuetrain = None, test = False):
     #Get all parsed arguments
-    serverdir = Path(os.path.realpath(__file__)).parent.parent
+    
     modeldir = serverdir.joinpath("model_params",modeldir)
-    data_pickle = serverdir.joinpath("data",datadir,"train_dict.pkl")
+    data_pickle = he_for_medical_data.joinpath("data",datadir,"train_dict.pkl") #moved data path
 
     #Load the training configs
     cfgs = modeldir.joinpath("configs.yaml")

@@ -40,6 +40,7 @@ def sigmoid(linear_pred):
     return sigmoid
 
 DIRECTORY = Path(os.path.realpath(__file__)).parent
+HE_for_Medical_Data = DIRECTORY.parent
 
 with open(DIRECTORY.parent/"README.md", "r") as f:
     README = f.read()
@@ -81,7 +82,7 @@ class Streamlithelp():
     def __init__(self):
         parentdir = DIRECTORY/"server"
         self.models_dir = parentdir/"model_params"
-        self.datas_dir = parentdir/"data"
+        self.datas_dir = HE_for_Medical_Data/"data" #parentdir/"data"
     def selections(self,dir):
         #get dirs to old models and return
         dirs = list(os.walk(dir))[0][1]
