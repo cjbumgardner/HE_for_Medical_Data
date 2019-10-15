@@ -186,7 +186,6 @@ class Pow(object):
             for indices in np.ndindex(shape):
                 self.mult(xc[indices], mc[indices])
                 self.relinear.relinearize(xc)
-                #st.write(self.relinear.size(xc))
         return xc
 
 class vec_relinearize():
