@@ -11,7 +11,6 @@ Clone repository and update python path
 =======
 repo_name = HE_for_Medical_Data
 git clone https://github.com/cjbumgardner/$repo_name
->>>>>>> dev-initial_build-201909
 cd $repo_name
 echo "export $repo_name=${PWD}" >> ~/.bash_profile
 echo "export PYTHONPATH=$repo_name/src:${PYTHONPATH}" >> ~/.bash_profile
