@@ -1,4 +1,8 @@
-# To install these Python dependencies, please type:
-# pip install -r requirements.txt
-
 streamlit
+https://download.pytorch.org/whl/cpu/torch-1.0.1.post2-cp36-cp36m-linux_x86_64.whl
+numpy 
+pandas
+PyYAML
+pathlib
+scipy
+bokeh
