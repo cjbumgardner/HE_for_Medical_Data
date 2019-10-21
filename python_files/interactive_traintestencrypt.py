@@ -34,16 +34,26 @@ import tensor_ops as tops
 import numpy as np 
 import pandas as pd
 
-def sigmoid(linear_pred):
-    e = np.exp(-linear_pred)
-    sigmoid = 1/(1+e)
-    return sigmoid
 
 DIRECTORY = Path(os.path.realpath(__file__)).parent
 HE_for_Medical_Data = DIRECTORY.parent
 
 with open(DIRECTORY.parent/"README.md", "r") as f:
     README = f.read()
+
+
+def sigmoid(linear_pred):
+    e = np.exp(-linear_pred)
+    sigmoid = 1/(1+e)
+    return sigmoid
+
+
+class Quantize(object):
+    def __init__(self,decimal = 6, zero = 0, scale = 1):
+        self.fix = tops.Round(decimal = decimal, zero = zero, scale = scale)
+    def __call__(self,x):
+        return self.fix(x)
+
 
 def find_file_type(dir_to_files, filename):
     if isinstance(dir_to_files,str):
@@ -58,25 +68,27 @@ def find_file_type(dir_to_files, filename):
             break
     return latest_path
 
-def showmodelweights(modeldir):
+
+def showmodelweights(modeldir,quantizer= (lambda x: x)):
     modeldict = most_recent_model(modeldir)
     modeldict = modeldir/modeldict
     weightdict = torch.load(modeldict)["model_state_dict"]
     if st.checkbox("Show model weights"):
         for k,v in weightdict.items():
             st.markdown(k)
-            st.dataframe(v.detach().numpy())
+            st.dataframe(quantizer(v.detach().numpy()))
 
 
-
-def getencodedmodel(modeldir, encoder, context, keygen):
+def getencodedmodel(modeldir, encoder, context, keygen, quantizer):
     #nn_model_path, encoder = None, context = None,  keygen = None
     encodedmodel = nn_svr(modeldir, 
                         encoder = encoder,
                         context = context,
                         keygen = keygen,
+                        quantize = quantizer
                         )
     return encodedmodel
+
 
 class Streamlithelp():
     def __init__(self):
@@ -108,6 +120,7 @@ class Streamlithelp():
     def dataselect(self):
         return self.sideselectboxdir("Select data set", self.datas_dir)
 
+
 class EncryptedInference(Streamlithelp):
     def __init__(self):
         super().__init__()
@@ -118,6 +131,7 @@ class EncryptedInference(Streamlithelp):
                 features, and the various encryption settings, the encoded model acting on encrypted data may be \
                 overwhelmed by noise. If so, the output will be useless. Here, you can observe runtimes of inferencing \
                 on encrypted data and check the output cooresponds to the output of the unencrypted settings.")
+        #empty placeholders for streamlit notifications and headers
         self.datasetdescription = st.empty()
         self.securityleveldescription = st.empty()
         self.polynomialmodulusdescription = st.empty()
@@ -125,11 +139,13 @@ class EncryptedInference(Streamlithelp):
         st.sidebar.header("Select a model and dataset")
         self.printparameters = st.sidebar.empty()
         self.doneencodingmodel = st.sidebar.empty()
+        #list models and data
         self.getpolymodels()
         self.modeldir = self.sideselectbox("Choose a model", self.polymodels)
         self.absolutemodeldir = self.models_dir/self.modeldir
         self.dataencryptednotice = st.sidebar.empty()
         self.datadir = self.dataselect()
+        #open data selection
         if self.datadir != "Select":
             with open(self.datas_dir/self.datadir/"data_dict.pkl", "rb") as f:
                 datadict = pickle.load(f)
@@ -139,7 +155,9 @@ class EncryptedInference(Streamlithelp):
             self.npdata_y = self.data_y.to_numpy()
             self.features = self.npdata_x.shape[1]
             st.write("Data_x",self.data_x)
-
+        #initialize quantize class object. this can be a part of user settings in the future
+        self.quantize = Quantize(decimal = 5, zero = 0, scale = 1)
+        #once encryption params are set this will load the encryption handler initialized class
         try:
             _handlerdict = find_file_type(self.absolutemodeldir,"cache_handler.pkl")
             if _handlerdict != None:
@@ -160,12 +178,17 @@ class EncryptedInference(Streamlithelp):
                 raise
         except Exception as e:
             self.handler = None
-        
+        #once modeldir is selected this encodes the model
         if self.modeldir!="Select" and not isinstance(self.handler, type(None)):
-            self.model = getencodedmodel(self.absolutemodeldir, self.handler.encoder, self.handler._cont, self.handler.keygen)
+            self.model = getencodedmodel(self.absolutemodeldir, 
+                                        self.handler.encoder, 
+                                        self.handler._cont, 
+                                        None, # for now there are cache problems that my attempts haven't fixed self.handler.keygen,
+                                        self.quantize,
+                                        )
             self.doneencodingmodel.success(f"Model {self.modeldir} is encoded.")
-            showmodelweights(self.absolutemodeldir)
-            
+            showmodelweights(self.absolutemodeldir,quantizer = self.quantize)
+        #once subset of data is selected for inference, this encrypts the data    
         try:
             _encrypteddata = find_file_type(self.absolutemodeldir,"cache_data.pkl")
             if _handlerdict != None:
@@ -179,7 +202,7 @@ class EncryptedInference(Streamlithelp):
         except Exception as e:
            ciphers = None
            plain = None
-
+        #the main streamlit selection/action processes
         if st.sidebar.checkbox("More Dataset Information"):
             self.datasetdescription.markdown("More Dataset Information: Add name of data set as a directory \
                 in server/data. Then, make a pkl file of a dictionary of pandas dataframes with keys 'x\_'\
@@ -248,7 +271,7 @@ class EncryptedInference(Streamlithelp):
                 Messages are encrypted as polynomials in the ring of polynomials modulo  x<sup>(2^n)</sup>+1. \
                 Here you determine n. Larger n means longer inference times, but it will help with \
                 evaluating circuits with larger multiplicative depth. For your model try {} first.", unsafe_allow_html=True)
-        plain_modulus = st.sidebar.selectbox("Plaintext modulus", [i+8 for i in range(8)], index = 2)
+        plain_modulus = st.sidebar.selectbox("Plaintext modulus", [i+8 for i in range(15)], index = 2)
         if plain_modulus != "Select":
             plain_modulus = 2**(plain_modulus)
         if st.sidebar.checkbox("Plaintext Modulus Information"):
@@ -348,12 +371,12 @@ class EncryptedInference(Streamlithelp):
                     st.error(f"You need to make sure you choose 0<= lower < upper < {numdatapoints}")
             except:
                 st.error("Make sure to enter numerical index values from the dataframe.")
-
+        #this encodes and encrypts the data as well as QUANTIZE
         if st.button("Encode and encrypt the data in the range selected"):
             try:
                 start = time.time()
                 with st.spinner("Encoding and Encrypting Data..."):
-                    unencrypted = self.npdata_x[lower:upper,:]
+                    unencrypted = self.quantize(self.npdata_x[lower:upper,:])
                     ciphers = self.handler.encode_encrypt(unencrypted)
                 stop = time.time()
                 st.success(f"Finished encrypting {upper-lower} samples in {round(stop-start,4)} seconds!")
@@ -376,6 +399,7 @@ class EncryptedInference(Streamlithelp):
                 available encryption settings.")
         with st.spinner("Now decrypting the data and finishing with sigmoid..."):
             unencoutput = self.handler.decrypt_decode(encoutput)
+            st.write(unencoutput)
             unencoutput = sigmoid(unencoutput)
 
         testmodel = TestNoStreamlit(features, self.absolutemodeldir)

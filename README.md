@@ -32,7 +32,7 @@ cd $repo_name
 
 ```
 
-The simpilest way to interact with this code base is by a Docker container. You need to have docker installed, you can go [here](https://docs.docker.com/install/) for information specific to your OS. 
+The simpilest way to interact with this code base is by a Docker container. You need to have docker installed, you can go [here](https://docs.docker.com/install/) for information specific to your OS. The local directory ```/data``` is a mounted volume to the docker container.
 
 After the above steps, to build the image: 
 ```

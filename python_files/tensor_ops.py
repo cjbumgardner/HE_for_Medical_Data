@@ -168,7 +168,9 @@ class Pow(object):
     """Raises x to the power n for n >= 1."""
     def __init__(self, context, keygen):
         self.mult = Evaluator(context).multiply
-        self.relinear = vec_relinearize(context, keygen)
+        self.keygen = keygen
+        if keygen:
+            self.relinear = vec_relinearize(context, keygen)
     def __call__(self, x, n):
         """For polynomials with multiple degrees, we need to not affect x. 
         This is in reference to mult happening in place or passed to a new
@@ -185,7 +187,8 @@ class Pow(object):
         for i in range(n-1):
             for indices in np.ndindex(shape):
                 self.mult(xc[indices], mc[indices])
-                self.relinear.relinearize(xc)
+                if self.keygen:
+                    self.relinear.relinearize(xc)
         return xc
 
 class vec_relinearize():
@@ -241,6 +244,19 @@ class vec_noise_budget(object):
     def budget(self):
         return self.__vec_budget
     
+
+class Round(object):
+    def __init__(self, decimal = 6, zero=0, scale=1):
+        self.decimal = decimal
+        self.zero = zero
+        self.scale = scale
+    def __call__(self,arr):
+        shape = arr.shape
+        for index in np.ndindex(shape):
+            arr[index] = round((arr[index]/self.scale)-self.zero, self.decimal)
+        return arr
+
+
 def print_parameters(context, empty=None):
     print("/ Encryption parameters:")
     print("| poly_modulus: " + context.poly_modulus().to_string())

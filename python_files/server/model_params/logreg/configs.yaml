@@ -1,0 +1,10 @@
+activation: poly
+batch_size: 30
+degrees:
+- 1
+- 2
+layers:
+- 1
+learning_rate: 0.001
+modeltype: nn
+num_epochs: 10

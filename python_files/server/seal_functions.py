@@ -81,7 +81,7 @@ class nn_svr(object):
         context
     """
 
-    def __init__(self, nn_model_path, encoder = None, context = None,  keygen = None):
+    def __init__(self, nn_model_path, encoder = None, context = None,  keygen = None, quantize = (lambda x: x)):
 
         coder = tops.vec_encoder(encoder)
         if isinstance(nn_model_path, str):
@@ -112,15 +112,15 @@ class nn_svr(object):
         #set up pyseal linear op
         self.model = []
         for i in range(l):
-            b = modelparm[f"nnet.weightedLinear{i}.bias"].numpy().astype(np.float32)
-            wg = modelparm[f"nnet.weightedLinear{i}.weight_g"].numpy().astype(np.float32) 
+            b = quantize(modelparm[f"nnet.weightedLinear{i}.bias"].numpy().astype(np.float32))
+            wg = modelparm[f"nnet.weightedLinear{i}.weight_g"].numpy().astype(np.float32)
             wv = modelparm[f"nnet.weightedLinear{i}.weight_v"].numpy().astype(np.float32)
-            w = wv * wg
+            w = quantize(wv * wg)
             bcode = coder(b)
             wcode = coder(w).T
             self.model.append(tops.PlainLinear(context, wcode, bcode))
             if i < l-1:
-                p = modelparm[f"nnet.poly{i}.coefficients"].numpy()
+                p = quantize(modelparm[f"nnet.poly{i}.coefficients"].numpy())
                 pcode = coder(p)
                 self.model.append(tops.Poly(context, keygen, pcode, degrees))
 

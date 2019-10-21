@@ -25,4 +25,3 @@ LICENSE
 Dockerfile
 docker-build.sh
 run-docker.sh
-requirements.txt
