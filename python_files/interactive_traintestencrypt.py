@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import yaml
 import time
+import streamlit_extras
 from seal import Ciphertext, \
     Decryptor, \
     Encryptor, \
@@ -46,6 +47,7 @@ def sigmoid(linear_pred):
     e = np.exp(-linear_pred)
     sigmoid = 1/(1+e)
     return sigmoid
+
 
 
 class Quantize(object):
@@ -219,13 +221,24 @@ class EncryptedInference(Streamlithelp):
         if action == "1. Set encryption parameters":
             rawhandlerdict = self.getencryptionparams()
             if self.modeldir != "Select":
-                if st.sidebar.button("Set encryption parameters"):
-                    if rawhandlerdict != None:
-                        handlerdict = self.setencryptionparams(**rawhandlerdict)
-                        with open(self.absolutemodeldir/"cache_handler.pkl", 'wb') as f:
-                            pickle.dump(handlerdict, f)
-                            st.sidebar.success("Encryption Parameters Set")
-                            tops.print_parameters(handlerdict["handler"].context,self.printparameters)
+                @streamlit_extras.cache_on_button_press("Set encryption parameters", ignore_hash=True)
+                def create_encryption_handler(rawhandlerdict):
+                    st.write('rawhandlerdict', rawhandlerdict)
+                    handlerdict = self.setencryptionparams(**rawhandlerdict)
+                    st.write('handlerdict', handlerdict)
+                    return handlerdict
+                handlerdict = create_encryption_handler(rawhandlerdict)
+                st.write('returned handlerdict', handlerdict)
+                raise RuntimeError('Blah')
+                # if st.sidebar.button(""):
+                    
+
+                    # if rawhandlerdict != None:
+                    #     handlerdict = self.setencryptionparams(**rawhandlerdict)
+                    #     with open(self.absolutemodeldir/"cache_handler.pkl", 'wb') as f:
+                    #         pickle.dump(handlerdict, f)
+                    #         st.sidebar.success("Encryption Parameters Set")
+                    #         tops.print_parameters(handlerdict["handler"].context,self.printparameters)
                     
         if action == "2. Encrypt Data":
             if self.handler == None:
