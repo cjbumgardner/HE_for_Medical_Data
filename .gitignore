@@ -4,3 +4,5 @@
 __pycache__/
 .devcontainer/
 .dockerignore
+python_files/interactive_traintestencrypt_old.py
+python_files/server/thowaway.py

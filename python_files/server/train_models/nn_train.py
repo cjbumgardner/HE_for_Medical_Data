@@ -63,7 +63,7 @@ class fully_conn(nn.Module):
     degrees: optional. If choosing activation=poly you must specify degress.
         The activation polynomial will have trainable coefficients but only 
         for the degrees specified. E.g.: [2,3]-> activation=  ax^2 +bx^3. """
-    def __init__(self, input_size, layers, activation, degrees = None):
+    def __init__(self, input_size, layers, activation, degrees = None, quantize = lambda x: x):
         super(fully_conn, self).__init__()
         network = [("weightedLinear0", weight_norm(nn.Linear(input_size,layers[0])))]
         numlayer = len(layers)

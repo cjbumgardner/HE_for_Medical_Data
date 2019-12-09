@@ -78,9 +78,9 @@ class encryption_handler(object):
             raise ValueError("There was a problem with your parameters.")
             st.write(f"There was a problem with your parameters: {e}")
 
-        _keygen = KeyGenerator(self._cont)
-        self._secretkey = _keygen.secret_key()
-        self._publickey = _keygen.public_key()
+        self._keygen = KeyGenerator(self._cont)
+        self._secretkey = self._keygen.secret_key()
+        self._publickey = self._keygen.public_key()
 
     @property
     def secretkey(self):
@@ -94,14 +94,9 @@ class encryption_handler(object):
     def context(self):
         return self._cont
 
-    
-class encryption_runner(encryption_handler):
-    def __init__(self, encryptionhandlerinstance):
-        self.__dict__ = encryptionhandlerinstance.__dict__
-        self.__keygen = KeyGenerator(self._cont)
     @property
     def keygen(self):
-        return self.__keygen
+        return self._keygen
 
     @property
     def encoder(self):
