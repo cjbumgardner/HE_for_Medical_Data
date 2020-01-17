@@ -3,6 +3,11 @@ Utilizing Homomorphic Encryption for Secure ML Inference
 
 This is a project developed in four weeks at Insight's Artifical Intelligence Fellowship program. Its purpose is twofold. One, as a testbed for the possibility of utilizing homomorphic encryption for secure inference in the healthcare predictive analytics industry (see below for more details). Two, it is an experimental tool to quickly build, train, and encode fully connected networks to run on encrypted data. This project wouldn't have been possible in four weeks if not for PySEAL from Lab41. PySEAL is a wrapper for the C++ SEAL encryption library out of Microsoft.
 
+## An Important Note on Previous Work
+
+Much of this work was done in a rushed timeline. Had I done proper background research on similar projects, I would have found previous work utilizing SEAL and the leveled homomorphic encryption scheme of Fan and Vercauteren. 'Cryptonets' being the first I believe: https://github.com/microsoft/CryptoNets. 
+
+
 ## Utilizing Homomorphic Encryption for Secure ML Models
 With the growing field of predictive analytics in the healthcare industry, there is a growing need to utilize ML models in a secure manner to protect healthcare records. Homomorphic encryption is an encryption that allows for arithmetic operations on ciphertexts that decrypts to the same arithmetic operations on the plaintexts. In other words, we can run ML inference on homomorphically encrypted data, and the output is decrypted to a value as if we simply ran inference on the raw data. A google slidedeck for this Insight project can be found [here](https://docs.google.com/presentation/d/15EZNeUMWxDNn39WEwgoHw3fQwY_7OZWdggyzbdaYs-I/edit?usp=sharing]).
 
